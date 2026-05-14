@@ -150,12 +150,14 @@
     modalOverlay.classList.remove('hidden');
     inputCwd.focus();
     if (window.bgEffect) window.bgEffect.setHue(260);
+    if (window.vibePlayer) window.vibePlayer.playModal();
   }
 
   function closeModal() {
     modalOverlay.classList.add('hidden');
     state.currentModalAgentId = null;
     if (window.bgEffect) window.bgEffect.setHue(220);
+    if (window.vibePlayer) window.vibePlayer.playModal();
   }
 
   function showStep(step) {
@@ -317,11 +319,17 @@
   });
 
   // ── Event Listeners ──
-  addCard.addEventListener('click', openModal);
+  addCard.addEventListener('click', () => {
+    openModal();
+    if (window.vibePlayer) window.vibePlayer.playClick();
+  });
 
   $('#btn-cancel').addEventListener('click', closeModal);
   $('#modal-close-btn').addEventListener('click', closeModal);
-  $('#btn-submit').addEventListener('click', submitAgent);
+  $('#btn-submit').addEventListener('click', () => {
+    submitAgent();
+    if (window.vibePlayer) window.vibePlayer.playClick();
+  });
 
   $('#modal-close-btn-review').addEventListener('click', () => {
     socket.emit('agent-decline', { id: state.currentModalAgentId });
@@ -335,13 +343,18 @@
     socket.emit('agent-accept', { id: state.currentModalAgentId });
     closeModal();
     if (window.bgEffect) window.bgEffect.pulse();
+    if (window.vibePlayer) window.vibePlayer.playClick();
   });
 
-  $('#detail-back-btn').addEventListener('click', closeDetail);
+  $('#detail-back-btn').addEventListener('click', () => {
+    closeDetail();
+    if (window.vibePlayer) window.vibePlayer.playClick();
+  });
   $('#detail-terminate-btn').addEventListener('click', () => {
     if (state.currentDetailAgentId) {
       socket.emit('agent-terminate', { id: state.currentDetailAgentId });
       closeDetail();
+      if (window.vibePlayer) window.vibePlayer.playClick();
     }
   });
 
@@ -364,9 +377,25 @@
   // ── Sidebar Navigation ──
   document.querySelectorAll('.sidebar-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+      if (window.vibePlayer) window.vibePlayer.playClick();
+      // Don't treat utility buttons as main page navigation
+      if (btn.id === 'nav-audio' || btn.id === 'nav-settings') {
+        if (window.bgEffect) window.bgEffect.pulse();
+        return;
+      }
+
+      document.querySelectorAll('.sidebar-btn').forEach(b => {
+        if (b.id !== 'nav-audio' && b.id !== 'nav-settings') {
+          b.classList.remove('active');
+        }
+      });
+      
       btn.classList.add('active');
       if (window.bgEffect) window.bgEffect.pulse();
+      
+      // Update page title based on nav
+      const title = btn.title || 'Dashboard';
+      $('#page-title').textContent = title === 'Dashboard' ? 'Mission Control' : title;
     });
   });
 

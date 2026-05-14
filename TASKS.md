@@ -20,16 +20,16 @@
 - [x] **T3.4**: Implement mission planning review phase (intercepting task list).
 
 ## Phase 4: Visuals & Audio
-- [ ] **T4.1**: Integrate background music player with track switching.
-- [ ] **T4.2**: Implement FreeJS/Three.js animated background.
-- [ ] **T4.3**: Build the reactive canvas visualizer (AudioContext + AnalyserNode).
-- [ ] **T4.4**: Connect visualizer energy levels to CSS variable updates for "pulsing" effects.
+- [x] **T4.1**: Integrate background music player with track switching.
+- [x] **T4.2**: Implement FreeJS/Three.js animated background.
+- [x] **T4.3**: Build the reactive canvas visualizer (AudioContext + AnalyserNode).
+- [x] **T4.4**: Connect visualizer energy levels to CSS variable updates for "pulsing" effects.
 
 ## Phase 5: Details & Polish
 - [x] **T5.1**: Implement "Full Page" expansion for agent cards (Detailed logs view).
-- [ ] **T5.2**: Add sound effects for UI interactions (Clicks, Modal open/close).
-- [ ] **T5.3**: Final animation audit (Spring transitions, stagger effects).
-- [ ] **T5.4**: Verification against `REQUIREMENTS.md`.
+- [x] **T5.2**: Add sound effects for UI interactions (Clicks, Modal open/close).
+- [x] **T5.3**: Final animation audit (Spring transitions, stagger effects).
+- [x] **T5.4**: Verification against `REQUIREMENTS.md`.
 
 ## Recurring
 - [x] **TR-1**: Generate Voice Logs for every milestone.

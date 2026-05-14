@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 const { VibesBridge } = require('./vibes-bridge');
 
 const app = express();
@@ -56,6 +57,40 @@ app.get('/api/agents', (req, res) => {
     list.push({ id, ...agent });
   });
   res.json(list);
+});
+
+// ── Audio API ──
+app.get('/api/audio', (req, res) => {
+  const audioDir = path.join(__dirname, '..', 'public', 'audio');
+  try {
+    if (!fs.existsSync(audioDir)) {
+      return res.json([]);
+    }
+    const files = fs.readdirSync(audioDir);
+    const tracks = files
+      .filter(f => f.endsWith('.mp3'))
+      .map(f => {
+        // Filename format: artist-title-id.mp3
+        const parts = f.replace('.mp3', '').split('-');
+        let artist = 'Vibe Artist';
+        let name = parts[0];
+        
+        if (parts.length >= 2) {
+          artist = parts[0].replace(/([A-Z])/g, ' $1').trim();
+          name = parts.slice(1, -1).join(' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+        
+        return {
+          name: name || f,
+          artist: artist,
+          url: `/audio/${f}`
+        };
+      });
+    res.json(tracks);
+  } catch (err) {
+    console.error('Error reading audio directory:', err);
+    res.status(500).json({ error: 'Failed to list audio' });
+  }
 });
 
 // REST API — agent status via Vibes bridge
