@@ -209,30 +209,36 @@ function generateDemoTasks(mission) {
 function simulateExecution(id, agent) {
   let taskIndex = 0;
   const interval = setInterval(() => {
-    if (!agents.has(id) || agent.status === 'terminated') {
+    if (!agents.has(id) || agent.status === 'terminated' || agent.status === 'complete') {
       clearInterval(interval);
       return;
     }
-    if (taskIndex < agent.tasks.length) {
-      agent.tasks[taskIndex].status = 'in-progress';
+    
+    if (agent.tasks && taskIndex < agent.tasks.length) {
+      const currentIdx = taskIndex;
+      taskIndex++; // Increment immediately for the next interval iteration
+      
+      agent.tasks[currentIdx].status = 'in-progress';
       io.emit('agent-updated', { id, ...agent });
 
       setTimeout(() => {
-        if (!agents.has(id)) return;
-        agent.tasks[taskIndex].status = 'complete';
-        agent.completedTasks = taskIndex + 1;
-        agent.progress = Math.round(((taskIndex + 1) / agent.totalTasks) * 100);
-        io.emit('agent-updated', { id, ...agent });
-        taskIndex++;
-
-        if (taskIndex >= agent.tasks.length) {
-          agent.status = 'complete';
-          io.emit('agent-updated', { id, ...agent });
-          clearInterval(interval);
+        const currentAgent = agents.get(id);
+        if (!currentAgent || !currentAgent.tasks || !currentAgent.tasks[currentIdx]) return;
+        
+        currentAgent.tasks[currentIdx].status = 'complete';
+        currentAgent.completedTasks = currentIdx + 1;
+        currentAgent.progress = Math.round(((currentIdx + 1) / currentAgent.totalTasks) * 100);
+        
+        if (currentAgent.completedTasks >= currentAgent.totalTasks) {
+          currentAgent.status = 'complete';
         }
+        
+        io.emit('agent-updated', { id, ...currentAgent });
       }, 2000 + Math.random() * 3000);
+    } else if (agent.tasks && taskIndex >= agent.tasks.length) {
+      clearInterval(interval);
     }
-  }, 3000 + Math.random() * 2000);
+  }, 4000 + Math.random() * 2000);
 }
 
 // Cleanup on exit
