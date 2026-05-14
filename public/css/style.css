@@ -19,6 +19,7 @@
   --radius-sm: 10px;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --glow-opacity: 0.1;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -122,7 +123,7 @@ body {
   padding: 12px 28px;
   background: var(--surface);
   backdrop-filter: blur(var(--glass-blur));
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid rgba(59, 130, 246, var(--glow-opacity));
 }
 
 .header-left { display: flex; align-items: baseline; gap: 12px; }
@@ -732,6 +733,48 @@ body {
   flex: 1;
   padding: 0 30px 30px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+/* Glass Scrollbar */
+.music-panel .panel-body::-webkit-scrollbar {
+  width: 5px;
+}
+.music-panel .panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.music-panel .panel-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  backdrop-filter: blur(5px);
+}
+.music-panel .panel-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.panel-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 20px;
+  transition: var(--transition);
+}
+
+.panel-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  transform: rotate(90deg);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .player-card {

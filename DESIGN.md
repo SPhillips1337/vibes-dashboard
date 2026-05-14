@@ -24,6 +24,9 @@ tokens:
   spacing:
     base: "8px"
     radius: "16px"
+  reactive:
+    glow-opacity: "Dynamic (0.1 - 0.5)"
+    energy: "Dynamic (0.0 - 1.0)"
 ---
 
 # 🌌 Glass Vibes Dashboard: Design System
