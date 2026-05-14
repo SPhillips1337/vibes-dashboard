@@ -56,11 +56,14 @@
       }
     }
     draw() {
+      const isLight = document.body.classList.contains('light-mode');
       const fade = Math.min(this.life / 30, 1);
       const h = (targetHue + hueShift) % 360;
+      const s = isLight ? '70%' : '80%';
+      const l = isLight ? '45%' : '65%';
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.size * (1 + energy * 0.5), 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${h}, 80%, 65%, ${this.opacity * fade})`;
+      ctx.fillStyle = `hsla(${h}, ${s}, ${l}, ${this.opacity * fade})`;
       ctx.fill();
     }
   }
@@ -79,12 +82,15 @@
         const dy = particles[i].y - particles[j].y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 100) {
+          const isLight = document.body.classList.contains('light-mode');
           const h = (targetHue + hueShift) % 360;
-          const alpha = (1 - dist / 100) * 0.08;
+          const s = isLight ? '60%' : '60%';
+          const l = isLight ? '40%' : '55%';
+          const alpha = (1 - dist / 100) * (isLight ? 0.12 : 0.08);
           ctx.beginPath();
           ctx.moveTo(particles[i].x, particles[i].y);
           ctx.lineTo(particles[j].x, particles[j].y);
-          ctx.strokeStyle = `hsla(${h}, 60%, 55%, ${alpha})`;
+          ctx.strokeStyle = `hsla(${h}, ${s}, ${l}, ${alpha})`;
           ctx.lineWidth = 0.5;
           ctx.stroke();
         }
@@ -94,7 +100,8 @@
 
   // Animation loop
   function animate() {
-    ctx.fillStyle = 'rgba(10, 10, 12, 0.15)';
+    const isLight = document.body.classList.contains('light-mode');
+    ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.15)' : 'rgba(10, 10, 12, 0.15)';
     ctx.fillRect(0, 0, width, height);
 
     // Smooth hue transition
