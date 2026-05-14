@@ -36,12 +36,11 @@
   const vCtx = visualizerCanvas.getContext('2d');
   const mCtx = miniCanvas ? miniCanvas.getContext('2d') : null;
 
-  // Sound Effects
+  // Sound Effects (Disabled due to external 403 errors)
   const sounds = {
-    click: new Audio('https://cdn.pixabay.com/audio/2022/03/15/audio_731446738c.mp3'),
-    modal: new Audio('https://cdn.pixabay.com/audio/2022/03/15/audio_65089c8942.mp3'),
+    click: { play: () => {}, currentTime: 0 },
+    modal: { play: () => {}, currentTime: 0 },
   };
-  Object.values(sounds).forEach(s => { s.volume = 0.2; s.crossOrigin = "anonymous"; });
 
   // Icons
   const playIcon = document.getElementById('play-icon');

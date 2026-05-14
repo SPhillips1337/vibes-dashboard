@@ -48,6 +48,30 @@
   // Clock
   const clockEl = $('#header-clock');
 
+  // Theme Toggle
+  const themeToggle = $('#theme-toggle');
+  const sunIcon = $('.sun-icon');
+  const moonIcon = $('.moon-icon');
+
+  function initTheme() {
+    const savedTheme = localStorage.getItem('vibes-theme') || 'dark';
+    if (savedTheme === 'light') {
+      document.body.classList.add('light-mode');
+      sunIcon.classList.add('hidden');
+      moonIcon.classList.remove('hidden');
+    }
+  }
+
+  themeToggle.addEventListener('click', () => {
+    const isLight = document.body.classList.toggle('light-mode');
+    localStorage.setItem('vibes-theme', isLight ? 'light' : 'dark');
+    sunIcon.classList.toggle('hidden');
+    moonIcon.classList.toggle('hidden');
+    if (window.vibePlayer) window.vibePlayer.playClick();
+  });
+
+  initTheme();
+
   // ── Clock ──
   function updateClock() {
     const now = new Date();
