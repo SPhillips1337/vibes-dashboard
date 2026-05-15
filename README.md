@@ -1,4 +1,4 @@
-# Glass Vibes Dashboard
+# Vibes Dashboard
 
 Premium glassmorphic dashboard for orchestrating Vibes subagents. A high-fidelity visual management layer for autonomous AI agents, featuring real-time process streaming, reactive particle backgrounds, an integrated music player, and audio-frequency visualizer.
 
@@ -6,8 +6,8 @@ Premium glassmorphic dashboard for orchestrating Vibes subagents. A high-fidelit
 
 ```bash
 # Clone the repository
-git clone https://github.com/SPhillips1337/glass-vibes-dashboard.git
-cd glass-vibes-dashboard
+git clone https://github.com/SPhillips1337/vibes-dashboard.git
+cd vibes-dashboard
 
 # Install dependencies
 npm install
