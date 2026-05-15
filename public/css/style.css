@@ -23,6 +23,12 @@
   --sidebar-bg: rgba(10, 10, 12, 0.98);
   --panel-bg: rgba(20, 20, 25, 0.85);
   --add-card-border: rgba(255, 255, 255, 0.15);
+  --add-card-bg: rgba(255, 255, 255, 0.02);
+  --add-card-text: rgba(255, 255, 255, 0.3);
+  --add-card-hover-border: #ffffff;
+  --add-card-hover-bg: rgba(255, 255, 255, 0.04);
+  --add-card-hover-text: #ffffff;
+  --volume-bg: rgba(255, 255, 255, 0.1);
   --input-bg: rgba(255, 255, 255, 0.04);
 }
 
@@ -36,7 +42,13 @@ body.light-mode {
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   --sidebar-bg: rgba(255, 255, 255, 0.9);
   --panel-bg: rgba(255, 255, 255, 0.85);
-  --add-card-border: rgba(0, 0, 0, 0.1);
+  --add-card-border: rgba(15, 23, 42, 0.2);
+  --add-card-bg: rgba(15, 23, 42, 0.05);
+  --add-card-text: rgba(15, 23, 42, 0.4);
+  --add-card-hover-border: rgba(15, 23, 42, 0.4);
+  --add-card-hover-bg: rgba(15, 23, 42, 0.1);
+  --add-card-hover-text: rgba(15, 23, 42, 0.8);
+  --volume-bg: rgba(15, 23, 42, 0.15);
   --input-bg: rgba(0, 0, 0, 0.03);
 }
 
@@ -358,19 +370,19 @@ body {
 /* ── Add Card ── */
 .add-card {
   border: 2px dashed var(--add-card-border);
-  background: var(--input-bg);
+  background: var(--add-card-bg);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   min-height: 220px;
 }
 
 .add-card:hover {
-  border-color: #ffffff;
-  background: rgba(255,255,255,0.04);
+  border-color: var(--add-card-hover-border);
+  background: var(--add-card-hover-bg);
 }
 .add-card:hover .add-icon,
 .add-card:hover .add-label {
-  color: #ffffff;
+  color: var(--add-card-hover-text);
 }
 
 .add-card-inner {
@@ -378,13 +390,13 @@ body {
 }
 .add-icon {
   font-size: 48px; font-weight: 200;
-  color: rgba(255,255,255,0.25);
+  color: var(--add-card-text);
   transition: var(--transition);
   line-height: 1;
 }
 .add-label {
   font-size: 14px; font-weight: 500;
-  color: rgba(255,255,255,0.3);
+  color: var(--add-card-text);
   transition: var(--transition);
 }
 
@@ -823,7 +835,8 @@ body {
 .player-card {
   padding: 20px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
   margin-bottom: 30px;
 }
 
@@ -833,7 +846,7 @@ body {
   aspect-ratio: 1;
   border-radius: 15px;
   overflow: hidden;
-  background: rgba(0,0,0,0.2);
+  background: var(--input-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -924,7 +937,7 @@ body {
   flex: 1;
   height: 4px;
   -webkit-appearance: none;
-  background: rgba(255,255,255,0.1);
+  background: var(--volume-bg);
   border-radius: 2px;
 }
 

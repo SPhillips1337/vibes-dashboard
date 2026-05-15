@@ -9,7 +9,8 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 9000;
+const HOST = process.env.HOST || 'localhost';
 const USE_VIBES = process.env.USE_VIBES === 'true';
 
 // Serve static files from public/
@@ -74,12 +75,12 @@ app.get('/api/audio', (req, res) => {
         const parts = f.replace('.mp3', '').split('-');
         let artist = 'Vibe Artist';
         let name = parts[0];
-        
+
         if (parts.length >= 2) {
           artist = parts[0].replace(/([A-Z])/g, ' $1').trim();
           name = parts.slice(1, -1).join(' ').replace(/\b\w/g, l => l.toUpperCase());
         }
-        
+
         return {
           name: name || f,
           artist: artist,
@@ -248,26 +249,26 @@ function simulateExecution(id, agent) {
       clearInterval(interval);
       return;
     }
-    
+
     if (agent.tasks && taskIndex < agent.tasks.length) {
       const currentIdx = taskIndex;
       taskIndex++; // Increment immediately for the next interval iteration
-      
+
       agent.tasks[currentIdx].status = 'in-progress';
       io.emit('agent-updated', { id, ...agent });
 
       setTimeout(() => {
         const currentAgent = agents.get(id);
         if (!currentAgent || !currentAgent.tasks || !currentAgent.tasks[currentIdx]) return;
-        
+
         currentAgent.tasks[currentIdx].status = 'complete';
         currentAgent.completedTasks = currentIdx + 1;
         currentAgent.progress = Math.round(((currentIdx + 1) / currentAgent.totalTasks) * 100);
-        
+
         if (currentAgent.completedTasks >= currentAgent.totalTasks) {
           currentAgent.status = 'complete';
         }
-        
+
         io.emit('agent-updated', { id, ...currentAgent });
       }, 2000 + Math.random() * 3000);
     } else if (agent.tasks && taskIndex >= agent.tasks.length) {
@@ -288,10 +289,10 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`\n  🌌 Glass Vibes Dashboard`);
   console.log(`  ━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`  ✦ Server running at http://localhost:${PORT}`);
+  console.log(`  ✦ Server running at http://${HOST}:${PORT}`);
   console.log(`  ✦ WebSocket ready`);
   console.log(`  ✦ Mode: ${USE_VIBES ? '🤖 Real Vibes Agents' : '🎭 Demo Simulation'}`);
   console.log(`  ✦ Set USE_VIBES=true to connect to real Vibes\n`);
