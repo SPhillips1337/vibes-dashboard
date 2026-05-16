@@ -19,7 +19,7 @@
 
   // ── Defaults ──
   const DEFAULT_VOICE = { voice: '', rate: 1.0, volume: 0.8, feedbackEnabled: true };
-  const DEFAULT_GENERAL = { autoLaunchOnCommand: true, theme: 'dark' };
+  const DEFAULT_GENERAL = { autoLaunchOnCommand: true, wakeWordEnabled: false, theme: 'dark' };
   const DEFAULT_LLM = { provider: 'disabled', hostUrl: '', model: '', apiKey: '', maxTokens: 1024 };
 
   // ── Load / Save ──
@@ -112,6 +112,7 @@
     // General tab
     setToggle('setting-feedback-toggle', voice.feedbackEnabled);
     setToggle('setting-autolaunch-toggle', general.autoLaunchOnCommand);
+    setToggle('setting-wakeword-toggle', general.wakeWordEnabled);
     setSelect('setting-theme', general.theme);
 
     // Voice tab
@@ -158,6 +159,14 @@
     const event = new Event('input', { bubbles: true });
     el?.dispatchEvent(event);
   }
+
+  // ── Toggle behavior ──
+  document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('.toggle');
+    if (toggle) {
+      toggle.classList.toggle('active');
+    }
+  });
 
   // ── Show/hide LLM fields based on provider ──
   function showLLMFields(provider) {
@@ -305,6 +314,7 @@
     // Gather General
     const feedbackEnabled = document.getElementById('setting-feedback-toggle')?.classList.contains('active') ?? true;
     const autoLaunchOnCommand = document.getElementById('setting-autolaunch-toggle')?.classList.contains('active') ?? true;
+    const wakeWordEnabled = document.getElementById('setting-wakeword-toggle')?.classList.contains('active') ?? false;
     const theme = document.getElementById('setting-theme')?.value || 'dark';
 
     // Gather Voice
@@ -333,7 +343,7 @@
     }
 
     savePrefs('vibes-voice-prefs', { voice, rate, volume, feedbackEnabled });
-    savePrefs('vibes-general-prefs', { autoLaunchOnCommand, theme });
+    savePrefs('vibes-general-prefs', { autoLaunchOnCommand, wakeWordEnabled, theme });
     savePrefs('vibes-llm-prefs', { provider, hostUrl, model, apiKey, maxTokens });
 
     // Apply theme immediately

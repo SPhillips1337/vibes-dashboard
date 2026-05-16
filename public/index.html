@@ -103,7 +103,11 @@
           <!-- Audio Visualizer Mini -->
           <canvas id="mini-visualizer" width="120" height="40"></canvas>
           <!-- Voice Command Button -->
-          <button id="voice-btn" class="voice-btn" title="Voice Command" aria-label="Voice command">
+          <div id="wake-word-indicator" class="wake-word-indicator hidden">
+            <span class="wake-dot"></span>
+            <span class="wake-text">Vibes</span>
+          </div>
+          <button id="voice-btn" class="voice-btn" title="Voice Command" aria-label="Start voice command">
             <svg class="voice-mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -339,6 +343,13 @@
             <span class="setting-desc">Automatically open the launch modal when "launch agent" is spoken</span>
           </div>
           <div class="toggle active" id="setting-autolaunch-toggle"></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Wake Word ("Vibes")</span>
+            <span class="setting-desc">Continuous listening for the word "Vibes" to activate voice control hands-free</span>
+          </div>
+          <div class="toggle" id="setting-wakeword-toggle"></div>
         </div>
         <div class="setting-row">
           <div class="setting-info">

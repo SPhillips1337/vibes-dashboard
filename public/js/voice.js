@@ -25,6 +25,8 @@
     audioDucked: false,
     previousVolume: null,
     pendingConfirm: null,      // { resolve, reject } for confirm dialog
+    wakeRecognition: null,
+    isWakeListening: false,
   };
 
   // ── Settings (loaded from localStorage) ──
@@ -51,6 +53,7 @@
   document.addEventListener('settings-changed', () => {
     voicePrefs = loadVoicePrefs();
     generalPrefs = loadGeneralPrefs();
+    updateWakeWordState();
   });
 
   // ── Toast System ──
@@ -106,6 +109,32 @@
       if (found) utterance.voice = found;
     }
     state.synth.speak(utterance);
+  }
+
+  // ── Web Audio Sci-Fi Chime for Wake Word ──
+  function playWakeBeep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = 'sine';
+      // Dual-tone futuristic synth beep (C5 to E5)
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08);
+      
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.03); // Soft
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+      
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.2);
+    } catch (e) {
+      console.warn('[Voice] AudioContext blocked or not supported');
+    }
   }
 
   // ── Audio Ducking ──
@@ -184,6 +213,7 @@
       if (state.isListening) {
         stopListening();
       } else {
+        stopWakeWordListening();
         startListening();
       }
     });
@@ -257,6 +287,10 @@
       voiceBtn.dataset.tooltip = 'Microphone access denied';
     } else {
       voiceBtn.dataset.tooltip = 'Voice Command';
+      // Automatically restart wake word if enabled when returning to idle
+      if (generalPrefs.wakeWordEnabled) {
+        setTimeout(startWakeWordListening, 400);
+      }
     }
   }
 
@@ -531,4 +565,93 @@
   // Expose for programmatic opening
   window.VoiceCommands.openHelpModal = openHelpModal;
   window.VoiceCommands.closeHelpModal = closeHelpModal;
+
+  // ── Wake Word Continuous Recognition Engine ──
+  function startWakeWordListening() {
+    if (!recognitionSupported || state.micDenied || state.isListening || state.isProcessing || state.isWakeListening) return;
+
+    if (!state.wakeRecognition) {
+      state.wakeRecognition = new SpeechRecognition();
+      state.wakeRecognition.lang = 'en-US';
+      state.wakeRecognition.continuous = true;
+      state.wakeRecognition.interimResults = true;
+
+      state.wakeRecognition.onresult = (e) => {
+        const lastResult = e.results[e.results.length - 1];
+        const transcript = lastResult[0].transcript.toLowerCase();
+        
+        // Scan for the wake word "vibes"
+        if (transcript.includes('vibes')) {
+          console.log('[Voice] Wake word "Vibes" detected!');
+          triggerWakeWord();
+        }
+      };
+
+      state.wakeRecognition.onend = () => {
+        state.isWakeListening = false;
+        // Auto-restart if still enabled and we aren't in another active state
+        if (generalPrefs.wakeWordEnabled && !state.isListening && !state.isProcessing && !state.micDenied) {
+          setTimeout(startWakeWordListening, 300);
+        }
+      };
+
+      state.wakeRecognition.onerror = (e) => {
+        if (e.error === 'not-allowed') {
+          state.micDenied = true;
+          setVoiceState('no-mic');
+          stopWakeWordListening();
+        }
+        console.warn('[Voice] Wake recognition error:', e.error);
+      };
+    }
+
+    try {
+      state.wakeRecognition.start();
+      state.isWakeListening = true;
+      console.log('[Voice] Wake word detection active ("Vibes")');
+    } catch (err) {
+      console.error('[Voice] Failed to start wake word engine:', err);
+    }
+  }
+
+  function stopWakeWordListening() {
+    if (state.wakeRecognition && state.isWakeListening) {
+      try {
+        state.wakeRecognition.stop();
+      } catch (_) {}
+      state.isWakeListening = false;
+    }
+  }
+
+  function triggerWakeWord() {
+    stopWakeWordListening();
+    playWakeBeep();
+    showToast('Awaiting command...', 'success', 2000);
+    setTimeout(() => {
+      startListening();
+    }, 150);
+  }
+
+  function updateWakeWordState() {
+    const indicator = document.getElementById('wake-word-indicator');
+    if (generalPrefs.wakeWordEnabled && recognitionSupported && !state.micDenied) {
+      indicator?.classList.remove('hidden');
+      startWakeWordListening();
+    } else {
+      indicator?.classList.add('hidden');
+      stopWakeWordListening();
+    }
+  }
+
+  // tab visibility optimization
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopWakeWordListening();
+    } else {
+      updateWakeWordState();
+    }
+  });
+
+  // Startup activation
+  setTimeout(updateWakeWordState, 1000);
 })();
