@@ -474,6 +474,13 @@
     showToast('Theme toggled', 'success');
   });
 
+  registerIntent('CANCEL', [
+    'cancel', 'stop listening', 'go away', 'nevermind', 'never mind', 'abort',
+  ], () => {
+    showToast('Cancelled', 'info');
+    // Does nothing else, just acknowledges and exits
+  });
+
   // Destructive commands
   registerIntent('TERMINATE_ALL', [
     'terminate all agents', 'stop all agents', 'kill all agents',
@@ -525,6 +532,7 @@
       MUSIC_PREV: { label: 'Previous Track', icon: '⏮' },
       NAV_SETTINGS: { label: 'Open Settings', icon: '⚙️' },
       TOGGLE_THEME: { label: 'Toggle Theme', icon: '🎨' },
+      CANCEL: { label: 'Cancel', icon: '🚫' },
       TERMINATE_ALL: { label: 'Terminate All Agents', icon: '🛑' },
       HELLO: { label: 'Greeting', icon: '👋' },
     };
