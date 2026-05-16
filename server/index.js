@@ -1,16 +1,34 @@
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
+const https = require('https');
 const fs = require('fs');
+const path = require('path');
+const { Server } = require('socket.io');
 const { VibesBridge } = require('./vibes-bridge');
 
 const app = express();
-const server = http.createServer(app);
+const certDir = path.join(__dirname, '..', 'certs');
+const certPath = path.join(certDir, 'cert.pem');
+const keyPath = path.join(certDir, 'key.pem');
+
+let server;
+if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+  const sslOptions = {
+    cert: fs.readFileSync(certPath),
+    key: fs.readFileSync(keyPath),
+  };
+  server = https.createServer(sslOptions, app);
+  console.log('[SSL] HTTPS enabled with self-signed certificate');
+} else {
+  const http = require('http');
+  server = http.createServer(app);
+  console.log('[SSL] No certificates found — falling back to HTTP (microphone may not work)');
+  console.log('[SSL] Run generate_cert.sh to create self-signed certificates');
+}
+
 const io = new Server(server);
 
 const PORT = process.env.PORT || 9000;
-const HOST = process.env.HOST || 'localhost';
+const HOST = process.env.HOST || '0.0.0.0';
 const USE_VIBES = process.env.USE_VIBES === 'true';
 
 // Serve static files from public/
@@ -290,10 +308,20 @@ process.on('SIGTERM', () => {
 });
 
 server.listen(PORT, HOST, () => {
+  const usingHttps = fs.existsSync(certPath) && fs.existsSync(keyPath);
+  const httpsProt = usingHttps ? 'https' : 'http';
+  const httpProt = 'http';
   console.log(`\n  🌌 Glass Vibes Dashboard`);
   console.log(`  ━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`  ✦ Server running at http://${HOST}:${PORT}`);
+  console.log(`  ✦ ${usingHttps ? 'HTTPS' : 'HTTP'} server running on port ${PORT}`);
+  console.log(`  ✦ Local:    ${usingHttps ? httpsProt : httpProt}://localhost:${PORT}  (use for microphone)`);
+  console.log(`  ✦ Network:  ${httpsProt}://192.168.5.215:${PORT}`);
   console.log(`  ✦ WebSocket ready`);
   console.log(`  ✦ Mode: ${USE_VIBES ? '🤖 Real Vibes Agents' : '🎭 Demo Simulation'}`);
-  console.log(`  ✦ Set USE_VIBES=true to connect to real Vibes\n`);
+  if (usingHttps) {
+    console.log(`  ✦ SSL: self-signed cert — accept browser warning on first visit`);
+  } else {
+    console.log(`  ✦ No SSL certs found. Mic may not work on LAN. Run generate_cert.sh`);
+  }
+  console.log();
 });

@@ -18,11 +18,27 @@ npm start
 
 Open `http://localhost:9000` in your browser.
 
-> **Configuration**: The server binds to `localhost` on port `9000` by default.
+> **Configuration**: The server binds to `192.168.5.215` on port `9000` by default.
 > Override via environment variables:
 > ```bash
 > PORT=9001 HOST=0.0.0.0 npm start
 > ```
+
+### HTTPS / SSL (Required for Microphone)
+
+Voice commands (`SpeechRecognition`) require a secure context. The server automatically enables HTTPS when certificates are present in `certs/`:
+
+```bash
+# Generate self-signed certificates (one-time setup)
+bash generate_cert.sh
+
+# Start the server — it will now serve over HTTPS
+npm start
+```
+
+> **Note**: The certificate is self-signed. Your browser will show a security warning — click **Advanced → Proceed** to accept it. This is safe for local development.
+
+> **Known issue**: Chrome's browser-native `SpeechRecognition` may fire "network" errors with self-signed certificates on some platforms. If the voice button doesn't work, try accessing `http://localhost:9000` (Chrome treats `localhost` as a secure context regardless of protocol) or use a different browser like Edge which handles self-signed certs better for speech APIs.
 
 ## Project Structure
 

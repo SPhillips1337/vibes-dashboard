@@ -36,3 +36,7 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 public/audio/*
+
+# SSL certificates (self-signed, local dev only)
+certs/
+!.gitkeep
