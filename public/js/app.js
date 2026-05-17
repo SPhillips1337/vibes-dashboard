@@ -198,8 +198,14 @@
       setTimeout(() => { inputMission.style.borderColor = ''; }, 1500);
       return;
     }
+    let llmPrefs = null;
+    try {
+      const rawPrefs = localStorage.getItem('vibes-llm-prefs');
+      if (rawPrefs) llmPrefs = JSON.parse(rawPrefs);
+    } catch (_) { }
+
     showStep('loading');
-    socket.emit('agent-create', { cwd, mission });
+    socket.emit('agent-create', { cwd, mission, llmPrefs });
     if (window.bgEffect) window.bgEffect.pulse();
   }
 
@@ -234,7 +240,7 @@
       el.className = `detail-task task-${task.status}`;
       const icon = task.status === 'complete' ? '✓'
         : task.status === 'in-progress' ? '⟳'
-        : '○';
+          : '○';
       el.innerHTML = `
         <span class="task-icon">${icon}</span>
         <span>${escapeHtml(task.name)}</span>
@@ -413,10 +419,10 @@
           b.classList.remove('active');
         }
       });
-      
+
       btn.classList.add('active');
       if (window.bgEffect) window.bgEffect.pulse();
-      
+
       // Update page title based on nav
       const title = btn.title || 'Dashboard';
       $('#page-title').textContent = title === 'Dashboard' ? 'Mission Control' : title;

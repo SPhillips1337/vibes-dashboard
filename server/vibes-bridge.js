@@ -7,6 +7,32 @@
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 const path = require('path');
+const fs = require('fs');
+
+function parseEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const env = {};
+    content.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx > 0) {
+        const key = trimmed.substring(0, eqIdx).trim();
+        let val = trimmed.substring(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.substring(1, val.length - 1);
+        }
+        env[key] = val;
+      }
+    });
+    return env;
+  } catch (err) {
+    console.error(`[Vibes Bridge] Error parsing env file ${filePath}:`, err.message);
+    return {};
+  }
+}
 
 class VibesBridge extends EventEmitter {
   constructor() {
@@ -22,8 +48,8 @@ class VibesBridge extends EventEmitter {
    * @param {string} mission - Mission description.
    * @returns {Promise<object>} The planned mission with tasks.
    */
-  async createAgent(id, cwd, mission) {
-    const instance = new VibesInstance(id, cwd);
+  async createAgent(id, cwd, mission, llmPrefs) {
+    const instance = new VibesInstance(id, cwd, llmPrefs);
     this.instances.set(id, instance);
 
     instance.on('status', (data) => this.emit('agent-status', { id, ...data }));
@@ -84,10 +110,11 @@ class VibesBridge extends EventEmitter {
 }
 
 class VibesInstance extends EventEmitter {
-  constructor(id, cwd) {
+  constructor(id, cwd, llmPrefs) {
     super();
     this.id = id;
     this.cwd = cwd;
+    this.llmPrefs = llmPrefs;
     this.process = null;
     this.requestId = 0;
     this.pendingRequests = new Map();
@@ -102,11 +129,31 @@ class VibesInstance extends EventEmitter {
     const vibesRoot = process.env.VIBES_PATH || path.join(require('os').homedir(), 'Vibes');
     const serverScript = path.join(vibesRoot, 'src', 'mcp', 'server.ts');
 
+    // 1. Start with the dashboard server's process environment
+    const envVars = { ...process.env };
+
+    // 2. Load the Vibes repository's own .env file to get core environment variables (like model, keys, etc.)
+    const vibesDotEnvPath = path.join(vibesRoot, '.env');
+    const vibesEnv = parseEnvFile(vibesDotEnvPath);
+    Object.assign(envVars, vibesEnv);
+
+    // 3. Override with dynamic LLM preferences configured in the user's browser, if available
+    if (this.llmPrefs && this.llmPrefs.provider !== 'disabled') {
+      envVars.OLLAMA_BASE_URL = this.llmPrefs.hostUrl;
+      envVars.OLLAMA_MODEL = this.llmPrefs.model;
+      if (this.llmPrefs.apiKey) {
+        envVars.OLLAMA_API_KEY = this.llmPrefs.apiKey;
+      }
+      if (this.llmPrefs.maxTokens) {
+        envVars.CONTEXT_WINDOW = String(this.llmPrefs.maxTokens * 32);
+      }
+    }
+
     this.process = spawn('tsx', ['--no-warnings', serverScript], {
       cwd: this.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
-        ...process.env,
+        ...envVars,
         VIBES_LAUNCH_DIR: this.cwd,
       },
     });

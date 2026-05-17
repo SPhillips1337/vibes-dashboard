@@ -29,7 +29,13 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 9000;
 const HOST = process.env.HOST || '0.0.0.0';
-const USE_VIBES = process.env.USE_VIBES === 'true';
+
+const vibesRoot = process.env.VIBES_PATH || path.join(require('os').homedir(), 'Vibes');
+const serverScript = path.join(vibesRoot, 'src', 'mcp', 'server.ts');
+const hasVibes = fs.existsSync(serverScript);
+
+// Auto-enable real vibes mode if the Vibes repository exists and USE_VIBES is not explicitly disabled
+const USE_VIBES = process.env.USE_VIBES === 'true' || (hasVibes && process.env.USE_VIBES !== 'false');
 
 // Serve static files from public/
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -130,6 +136,12 @@ io.on('connection', (socket) => {
   // Create a new agent
   socket.on('agent-create', (data) => {
     const id = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
+    // Dynamically decide whether to run a real Vibes agent or simulated demo
+    const hasLlmPrefs = data.llmPrefs && data.llmPrefs.provider && data.llmPrefs.provider !== 'disabled';
+    const isExplicitlyDisabled = data.llmPrefs && data.llmPrefs.provider === 'disabled';
+    const useRealVibes = process.env.USE_VIBES === 'true' || (hasVibes && process.env.USE_VIBES !== 'false' && !isExplicitlyDisabled);
+
     const agent = {
       mission: data.mission || 'Unnamed Mission',
       cwd: data.cwd || '~/',
@@ -140,15 +152,15 @@ io.on('connection', (socket) => {
       tasks: [],
       logs: [],
       createdAt: new Date().toISOString(),
-      useVibes: USE_VIBES,
+      useVibes: useRealVibes,
     };
     agents.set(id, agent);
     io.emit('agent-created', { id, ...agent });
-    console.log(`[Agent] Created: ${id} — "${agent.mission}" (mode: ${USE_VIBES ? 'vibes' : 'demo'})`);
+    console.log(`[Agent] Created: ${id} — "${agent.mission}" (mode: ${useRealVibes ? 'vibes' : 'demo'})`);
 
-    if (USE_VIBES) {
+    if (useRealVibes) {
       // Real Vibes integration
-      handleVibesAgent(id, agent);
+      handleVibesAgent(id, agent, data.llmPrefs);
     } else {
       // Demo simulation
       handleDemoAgent(id, agent);
@@ -162,7 +174,7 @@ io.on('connection', (socket) => {
     agent.status = 'executing';
     io.emit('agent-updated', { id: data.id, ...agent });
 
-    if (!USE_VIBES) {
+    if (!agent.useVibes) {
       simulateExecution(data.id, agent);
     }
     // For real Vibes, execution already started with the mission
@@ -203,10 +215,10 @@ io.on('connection', (socket) => {
 });
 
 // ── Real Vibes Agent Handler ──
-async function handleVibesAgent(id, agent) {
+async function handleVibesAgent(id, agent, llmPrefs) {
   try {
     console.log(`[Vibes] Starting real agent for: ${agent.mission}`);
-    const result = await vibesBridge.createAgent(id, agent.cwd, agent.mission);
+    const result = await vibesBridge.createAgent(id, agent.cwd, agent.mission, llmPrefs);
 
     // Parse the result — the execute_mission tool returns a summary string
     if (result && result.content) {

@@ -15,12 +15,14 @@
     general: document.getElementById('settings-general'),
     voice: document.getElementById('settings-voice'),
     llm: document.getElementById('settings-llm'),
+    orchestration: document.getElementById('settings-orchestration'),
   };
 
   // ── Defaults ──
   const DEFAULT_VOICE = { voice: '', rate: 1.0, volume: 0.8, feedbackEnabled: true };
   const DEFAULT_GENERAL = { autoLaunchOnCommand: true, wakeWordEnabled: false, theme: 'dark' };
   const DEFAULT_LLM = { provider: 'disabled', hostUrl: '', model: '', apiKey: '', maxTokens: 1024 };
+  const DEFAULT_ORCHESTRATION = { executionMode: 'auto', vibesPath: '' };
 
   // ── Load / Save ──
   function loadPrefs(key, defaults) {
@@ -108,6 +110,7 @@
     const voice = loadPrefs('vibes-voice-prefs', DEFAULT_VOICE);
     const general = loadPrefs('vibes-general-prefs', DEFAULT_GENERAL);
     const llm = loadPrefs('vibes-llm-prefs', DEFAULT_LLM);
+    const orchestration = loadPrefs('vibes-orchestration-prefs', DEFAULT_ORCHESTRATION);
 
     // General tab
     setToggle('setting-feedback-toggle', voice.feedbackEnabled);
@@ -130,6 +133,10 @@
     setInput('setting-openai-model', llm.model || 'gpt-4o-mini');
     setInput('setting-openai-key', llm.apiKey || '');
     setInput('setting-max-tokens', llm.maxTokens || 1024);
+
+    // Orchestration tab
+    setSelect('setting-execution-mode', orchestration.executionMode || 'auto');
+    setInput('setting-vibes-path', orchestration.vibesPath || '');
 
     // Show correct LLM fields
     showLLMFields(llm.provider);
@@ -342,9 +349,14 @@
       apiKey = document.getElementById('setting-openai-key')?.value || '';
     }
 
+    // Gather Orchestration
+    const executionMode = document.getElementById('setting-execution-mode')?.value || 'auto';
+    const vibesPath = document.getElementById('setting-vibes-path')?.value || '';
+
     savePrefs('vibes-voice-prefs', { voice, rate, volume, feedbackEnabled });
     savePrefs('vibes-general-prefs', { autoLaunchOnCommand, wakeWordEnabled, theme });
     savePrefs('vibes-llm-prefs', { provider, hostUrl, model, apiKey, maxTokens });
+    savePrefs('vibes-orchestration-prefs', { executionMode, vibesPath });
 
     // Apply theme immediately
     if (theme === 'light') {

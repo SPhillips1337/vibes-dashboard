@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +8,12 @@
   <meta name="description" content="Premium glassmorphic dashboard for orchestrating autonomous Vibes subagents.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 
   <!-- Animated Background Canvas -->
@@ -22,38 +26,41 @@
     <nav id="sidebar">
       <div class="sidebar-logo" title="Glass Vibes">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-          <path d="M2 17l10 5 10-5"/>
-          <path d="M2 12l10 5 10-5"/>
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5" />
+          <path d="M2 12l10 5 10-5" />
         </svg>
       </div>
       <div class="sidebar-sep"></div>
 
       <button class="sidebar-btn active" id="nav-dashboard" title="Dashboard">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="7" rx="1"/>
-          <rect x="14" y="3" width="7" height="7" rx="1"/>
-          <rect x="3" y="14" width="7" height="7" rx="1"/>
-          <rect x="14" y="14" width="7" height="7" rx="1"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
         </svg>
       </button>
 
       <button class="sidebar-btn" id="nav-logs" title="Logs">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <polyline points="10 9 9 9 8 9"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
         </svg>
       </button>
 
       <button class="sidebar-btn" id="nav-visualizer" title="Visualizer">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="1" y="6" width="4" height="12" rx="1"/>
-          <rect x="7" y="3" width="4" height="18" rx="1"/>
-          <rect x="13" y="8" width="4" height="8" rx="1"/>
-          <rect x="19" y="5" width="4" height="14" rx="1"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <rect x="1" y="6" width="4" height="12" rx="1" />
+          <rect x="7" y="3" width="4" height="18" rx="1" />
+          <rect x="13" y="8" width="4" height="8" rx="1" />
+          <rect x="19" y="5" width="4" height="14" rx="1" />
         </svg>
       </button>
 
@@ -61,17 +68,20 @@
 
       <!-- Audio Toggle -->
       <button class="sidebar-btn" id="nav-audio" title="Music Player">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 18V5l12-2v13"/>
-          <circle cx="6" cy="18" r="3"/>
-          <circle cx="18" cy="16" r="3"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13" />
+          <circle cx="6" cy="18" r="3" />
+          <circle cx="18" cy="16" r="3" />
         </svg>
       </button>
 
       <button class="sidebar-btn" id="nav-settings" title="Settings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
     </nav>
@@ -108,40 +118,53 @@
             <span class="wake-text">Vibes</span>
           </div>
           <button id="voice-btn" class="voice-btn" title="Voice Command" aria-label="Start voice command">
-            <svg class="voice-mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
+            <svg class="voice-mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="8" y1="23" x2="16" y2="23" />
             </svg>
-            <svg class="voice-wave-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <path d="M8 12a4 4 0 0 0 8 0"/>
-              <animateTransform attributeName="transform" type="rotate" values="0 12 12;10 12 12;0 12 12;-10 12 12;0 12 12" dur="1.2s" repeatCount="indefinite"/>
+            <svg class="voice-wave-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <path d="M8 12a4 4 0 0 0 8 0" />
+              <animateTransform attributeName="transform" type="rotate"
+                values="0 12 12;10 12 12;0 12 12;-10 12 12;0 12 12" dur="1.2s" repeatCount="indefinite" />
             </svg>
-            <svg class="voice-nomic-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="1" y1="1" x2="23" y2="23"/>
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
+            <svg class="voice-nomic-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="1" y1="1" x2="23" y2="23" />
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
             </svg>
           </button>
           <!-- Voice Help Button -->
           <button id="voice-help-btn" class="voice-help-btn" title="Voice Commands" aria-label="Voice commands help">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </button>
           <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Theme">
             <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
             </svg>
             <svg class="moon-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
             </svg>
           </button>
           <div class="header-clock" id="header-clock">--:--</div>
@@ -162,7 +185,7 @@
         <!-- Agent cards will be injected here by JS -->
 
       </div>
-      
+
       <!-- Music Player Panel -->
       <div id="music-panel" class="music-panel hidden">
         <div class="panel-header">
@@ -175,9 +198,9 @@
               <canvas id="player-visualizer"></canvas>
               <div class="art-placeholder">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M9 18V5l12-2v13"/>
-                  <circle cx="6" cy="18" r="3"/>
-                  <circle cx="18" cy="16" r="3"/>
+                  <path d="M9 18V5l12-2v13" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="18" cy="16" r="3" />
                 </svg>
               </div>
             </div>
@@ -187,22 +210,36 @@
             </div>
             <div class="player-controls">
               <button class="ctrl-btn" id="btn-prev" title="Previous">
-                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="19 20 9 12 19 4 19 20" />
+                  <line x1="5" y1="19" x2="5" y2="5" />
+                </svg>
               </button>
               <button class="ctrl-btn play-pause" id="btn-play-pause" title="Play/Pause">
-                <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                <svg id="pause-icon" class="hidden" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                <svg id="pause-icon" class="hidden" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="4" width="4" height="16" />
+                  <rect x="14" y="4" width="4" height="16" />
+                </svg>
               </button>
               <button class="ctrl-btn" id="btn-next" title="Next">
-                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 4 15 12 5 20 5 4" />
+                  <line x1="19" y1="5" x2="19" y2="19" />
+                </svg>
               </button>
             </div>
             <div class="volume-container">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="vol-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="vol-icon">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+              </svg>
               <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
             </div>
           </div>
-          
+
           <div class="playlist-section">
             <h3>Playlist</h3>
             <div class="playlist" id="playlist">
@@ -277,7 +314,7 @@
       <div class="detail-header">
         <button class="detail-back" id="detail-back-btn" title="Back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15 18 9 12 15 6"/>
+            <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
         <h2 class="detail-title" id="detail-title">Agent Details</h2>
@@ -326,6 +363,7 @@
         <button class="settings-tab active" role="tab" aria-selected="true" data-tab="general">General</button>
         <button class="settings-tab" role="tab" aria-selected="false" data-tab="voice">Voice</button>
         <button class="settings-tab" role="tab" aria-selected="false" data-tab="llm">LLM Provider</button>
+        <button class="settings-tab" role="tab" aria-selected="false" data-tab="orchestration">Orchestration</button>
       </div>
 
       <!-- General Tab -->
@@ -347,7 +385,8 @@
         <div class="setting-row">
           <div class="setting-info">
             <span class="setting-label">Wake Word ("Vibes")</span>
-            <span class="setting-desc">Continuous listening for the word "Vibes" to activate voice control hands-free</span>
+            <span class="setting-desc">Continuous listening for the word "Vibes" to activate voice control
+              hands-free</span>
           </div>
           <div class="toggle" id="setting-wakeword-toggle"></div>
         </div>
@@ -488,16 +527,40 @@
             <div class="setting-info">
               <span class="setting-label">Max Tokens</span>
             </div>
-            <input type="number" class="setting-input setting-input-narrow" id="setting-max-tokens" value="1024" min="64" max="32768">
+            <input type="number" class="setting-input setting-input-narrow" id="setting-max-tokens" value="1024"
+              min="64" max="32768">
           </div>
           <div class="setting-row setting-row-warn">
-            <span class="warn-text">⚠ API keys stored in browser localStorage. For production, configure via server environment variables.</span>
+            <span class="warn-text">⚠ API keys stored in browser localStorage. For production, configure via server
+              environment variables.</span>
           </div>
         </div>
 
         <div class="setting-actions">
           <button class="btn btn-ghost btn-sm" id="setting-test-connection">Test Connection</button>
           <span class="test-result" id="setting-test-result"></span>
+        </div>
+      </div>
+
+      <!-- Orchestration Tab -->
+      <div class="settings-panel hidden" id="settings-orchestration" role="tabpanel">
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Execution Mode</span>
+            <span class="setting-desc">Control whether launched agents run real CLI tasks or demo simulations</span>
+          </div>
+          <select class="setting-select" id="setting-execution-mode">
+            <option value="auto">Auto-Detect</option>
+            <option value="real">Real Vibes Agent</option>
+            <option value="demo">Demo / Simulation Mode</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Vibes Repository Path</span>
+            <span class="setting-desc">Absolute path to your Vibes project root folder</span>
+          </div>
+          <input type="text" class="setting-input" id="setting-vibes-path" placeholder="/home/stephen/Vibes">
         </div>
       </div>
 
@@ -521,9 +584,12 @@
       <div class="help-troubleshoot">
         <h4>Having issues?</h4>
         <ul>
-          <li><strong>SSL Required:</strong> Microphone access requires a secure context (HTTPS or localhost). If you see a warning, you must click 'Advanced' -> 'Proceed'.</li>
-          <li><strong>Chrome on Linux:</strong> Ensure you are using a secure connection. Self-signed certs may cause 'network' errors on first use.</li>
-          <li><strong>Permissions:</strong> Check your browser's site settings to ensure microphone access is 'Allow'.</li>
+          <li><strong>SSL Required:</strong> Microphone access requires a secure context (HTTPS or localhost). If you
+            see a warning, you must click 'Advanced' -> 'Proceed'.</li>
+          <li><strong>Chrome on Linux:</strong> Ensure you are using a secure connection. Self-signed certs may cause
+            'network' errors on first use.</li>
+          <li><strong>Permissions:</strong> Check your browser's site settings to ensure microphone access is 'Allow'.
+          </li>
         </ul>
       </div>
       <div class="modal-actions">
@@ -552,4 +618,5 @@
   <script src="js/settings.js"></script>
   <script src="js/app.js"></script>
 </body>
+
 </html>

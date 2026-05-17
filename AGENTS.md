@@ -1,8 +1,8 @@
-# AGENTS.md — AI Agent Guidelines for Glass Vibes Dashboard
+# AGENTS.md — AI Agent Guidelines for Vibes Dashboard
 
 ## Project Overview
 
-**Glass Vibes Dashboard** is a premium, glassmorphic interface designed to visualize "Vibes" agents and other systems in future iterations. It prioritizes visual excellence, smooth animations, and a real-time, alive feel.
+**Vibes Dashboard** is a premium, glassmorphic interface designed to visualize "Vibes" agents and other systems in future iterations. It prioritizes visual excellence, smooth animations, and a real-time, alive feel.
 
 ## 🎙 Agent Protocol (Mandatory)
 
@@ -10,7 +10,7 @@ All agents working on this project MUST follow the **Voice Log Protocol**.
 Whenever you complete a task, you MUST generate a summary report in the centralized reports directory to trigger an audible update via the AG Voice Log system.
 
 **Logging Instructions**:
-1. **Target Directory**: `/home/stephen/antigravity_reports/`
+1. **Target Directory**: `/tmp/antigravity_reports/`
 2. **Frequency**: Upon completion of any significant task, UI update, or milestone.
 3. **File Format**: 
    - Extension: `.md`
