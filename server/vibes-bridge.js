@@ -61,12 +61,23 @@ class VibesBridge extends EventEmitter {
 
     try {
       await instance.start();
-      const plan = await instance.executeMission(mission);
+      const plan = await instance.planMission(mission);
       return plan;
     } catch (err) {
       this.instances.delete(id);
       throw err;
     }
+  }
+
+  /**
+   * Execute the mission that was already planned.
+   * @param {string} id
+   * @returns {Promise<object>} The execution result.
+   */
+  async executePlannedMission(id) {
+    const instance = this.instances.get(id);
+    if (!instance) throw new Error('Agent not found.');
+    return await instance.executeMission();
   }
 
   /**
@@ -149,7 +160,14 @@ class VibesInstance extends EventEmitter {
       }
     }
 
-    this.process = spawn('tsx', ['--no-warnings', serverScript], {
+    // Resolve local Vibes tsx binary for robustness
+    let tsxBinary = 'tsx';
+    const localTsx = path.join(vibesRoot, 'node_modules', '.bin', 'tsx');
+    if (fs.existsSync(localTsx)) {
+      tsxBinary = localTsx;
+    }
+
+    this.process = spawn(tsxBinary, ['--no-warnings', serverScript], {
       cwd: this.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
@@ -196,13 +214,20 @@ class VibesInstance extends EventEmitter {
     }
   }
 
-  async executeMission(description) {
+  async planMission(description) {
     return this.sendRequest('tools/call', {
-      name: 'execute_mission',
+      name: 'plan_mission',
       arguments: {
         description,
         workspace_root: this.cwd,
       },
+    }, 600000); // 10 minute timeout for planning
+  }
+
+  async executeMission() {
+    return this.sendRequest('tools/call', {
+      name: 'start_execution',
+      arguments: {},
     }, 600000); // 10 minute timeout for missions
   }
 
@@ -225,9 +250,37 @@ class VibesInstance extends EventEmitter {
       const request = { jsonrpc: '2.0', id, method, params };
 
       this.pendingRequests.set(id, { resolve, reject });
+
+      const cleanup = () => {
+        if (this.process) {
+          this.process.removeListener('error', onError);
+          this.process.removeListener('exit', onExit);
+        }
+      };
+
+      const onError = (err) => {
+        cleanup();
+        if (this.pendingRequests.has(id)) {
+          this.pendingRequests.delete(id);
+          reject(new Error(`Vibes process spawn error: ${err.message}`));
+        }
+      };
+
+      const onExit = (code) => {
+        cleanup();
+        if (this.pendingRequests.has(id)) {
+          this.pendingRequests.delete(id);
+          reject(new Error(`Vibes process exited with code ${code}`));
+        }
+      };
+
+      this.process.once('error', onError);
+      this.process.once('exit', onExit);
+
       this.process.stdin.write(JSON.stringify(request) + '\n');
 
       setTimeout(() => {
+        cleanup();
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(new Error(`Request ${method} timed out after ${timeoutMs / 1000}s`));

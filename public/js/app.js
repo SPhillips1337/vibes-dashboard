@@ -369,6 +369,11 @@
     socket.emit('agent-decline', { id: state.currentModalAgentId });
     closeModal();
   });
+  $('#btn-regenerate').addEventListener('click', () => {
+    socket.emit('agent-decline', { id: state.currentModalAgentId });
+    submitAgent();
+    if (window.vibePlayer) window.vibePlayer.playClick();
+  });
   $('#btn-accept').addEventListener('click', () => {
     socket.emit('agent-accept', { id: state.currentModalAgentId });
     closeModal();

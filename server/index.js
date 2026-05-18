@@ -50,6 +50,26 @@ const vibesBridge = new VibesBridge();
 vibesBridge.on('agent-status', (data) => {
   const agent = agents.get(data.id);
   if (agent && data.log) {
+    // Intercept task status events
+    if (data.log.startsWith('[TASK_STATUS] ')) {
+      try {
+        const taskStatus = JSON.parse(data.log.substring(14));
+        if (agent.tasks) {
+          const taskIdx = agent.tasks.findIndex(t => t.name === taskStatus.name);
+          if (taskIdx >= 0) {
+            agent.tasks[taskIdx].status = taskStatus.status;
+            if (taskStatus.status === 'complete') {
+              const completedCount = agent.tasks.filter(t => t.status === 'complete').length;
+              agent.completedTasks = completedCount;
+              agent.progress = Math.round((completedCount / agent.totalTasks) * 100);
+            }
+            io.emit('agent-updated', { id: data.id, ...agent });
+          }
+        }
+      } catch (e) {}
+      return; // Do not push internal status to live logs
+    }
+
     if (!agent.logs) agent.logs = [];
     agent.logs.push({ time: new Date().toISOString(), message: data.log });
     // Keep only last 200 log lines
@@ -176,8 +196,9 @@ io.on('connection', (socket) => {
 
     if (!agent.useVibes) {
       simulateExecution(data.id, agent);
+    } else {
+      handleVibesExecution(data.id, agent);
     }
-    // For real Vibes, execution already started with the mission
   });
 
   // Decline proposed tasks
@@ -217,10 +238,37 @@ io.on('connection', (socket) => {
 // ── Real Vibes Agent Handler ──
 async function handleVibesAgent(id, agent, llmPrefs) {
   try {
-    console.log(`[Vibes] Starting real agent for: ${agent.mission}`);
+    console.log(`[Vibes] Starting real agent planning for: ${agent.mission}`);
     const result = await vibesBridge.createAgent(id, agent.cwd, agent.mission, llmPrefs);
 
-    // Parse the result — the execute_mission tool returns a summary string
+    if (result && result.content) {
+      const text = typeof result.content === 'string'
+        ? result.content
+        : (result.content[0]?.text || JSON.stringify(result.content));
+
+      try {
+        const tasks = JSON.parse(text);
+        agent.tasks = tasks;
+        agent.totalTasks = tasks.length;
+        agent.status = 'review';
+        io.emit('agent-updated', { id, ...agent });
+      } catch (e) {
+        agent.status = 'error';
+        agent.error = 'Failed to parse mission plan JSON.';
+        io.emit('agent-updated', { id, ...agent });
+      }
+    }
+  } catch (err) {
+    console.error(`[Vibes] Agent ${id} failed:`, err.message);
+    agent.status = 'error';
+    agent.error = err.message;
+    io.emit('agent-updated', { id, ...agent });
+  }
+}
+
+async function handleVibesExecution(id, agent) {
+  try {
+    const result = await vibesBridge.executePlannedMission(id);
     if (result && result.content) {
       const text = typeof result.content === 'string'
         ? result.content
@@ -232,7 +280,7 @@ async function handleVibesAgent(id, agent, llmPrefs) {
       io.emit('agent-updated', { id, ...agent });
     }
   } catch (err) {
-    console.error(`[Vibes] Agent ${id} failed:`, err.message);
+    console.error(`[Vibes] Agent execution failed:`, err.message);
     agent.status = 'error';
     agent.error = err.message;
     io.emit('agent-updated', { id, ...agent });

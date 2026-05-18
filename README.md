@@ -1,4 +1,4 @@
-# Glass Vibes Dashboard
+# Vibes Dashboard
 
 Premium glassmorphic dashboard for orchestrating autonomous Vibes subagents. Features real-time agent monitoring, reactive particle backgrounds, an integrated music player with audio frequency visualizer, and voice command control.
 
