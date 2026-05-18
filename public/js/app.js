@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   Glass Vibes Dashboard — Main App Logic
+   Vibes Dashboard — Main App Logic
    Agent lifecycle, modals, detail views
    ═══════════════════════════════════════ */
 

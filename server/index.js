@@ -66,7 +66,7 @@ vibesBridge.on('agent-status', (data) => {
             io.emit('agent-updated', { id: data.id, ...agent });
           }
         }
-      } catch (e) {}
+      } catch (e) { }
       return; // Do not push internal status to live logs
     }
 
@@ -372,7 +372,7 @@ server.listen(PORT, HOST, () => {
   const usingHttps = fs.existsSync(certPath) && fs.existsSync(keyPath);
   const httpsProt = usingHttps ? 'https' : 'http';
   const httpProt = 'http';
-  console.log(`\n  🌌 Glass Vibes Dashboard`);
+  console.log(`\n  🌌 Vibes Dashboard`);
   console.log(`  ━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`  ✦ ${usingHttps ? 'HTTPS' : 'HTTP'} server running on port ${PORT}`);
   console.log(`  ✦ Local:    ${usingHttps ? httpsProt : httpProt}://localhost:${PORT}  (use for microphone)`);

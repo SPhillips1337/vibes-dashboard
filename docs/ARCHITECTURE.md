@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Glass Vibes Dashboard is a full-stack application with a Node.js/Express backend and a vanilla HTML/CSS/JS frontend. Communication between the two layers happens via REST HTTP endpoints and Socket.io WebSockets.
+Vibes Dashboard is a full-stack application with a Node.js/Express backend and a vanilla HTML/CSS/JS frontend. Communication between the two layers happens via REST HTTP endpoints and Socket.io WebSockets.
 
 ```
 ┌────────────────────────────────────────────────┐

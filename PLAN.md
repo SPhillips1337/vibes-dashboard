@@ -1,7 +1,7 @@
-# 🌌 Plan: Glass Vibes Dashboard
+# 🌌 Plan: Vibes Dashboard
 
 ## 🎯 Overview
-The **Glass Vibes Dashboard** will be a premium, glassmorphic orchestration interface for managing **Vibes** subagents. It will blend the visual excellence of SimCity's UI, the reactive aesthetics of TranceAngel, and the autonomous power of the Vibes agentic loop.
+The **Vibes Dashboard** will be a premium, glassmorphic orchestration interface for managing **Vibes** subagents. It will blend the visual excellence of SimCity's UI, the reactive aesthetics of TranceAngel, and the autonomous power of the Vibes agentic loop.
 
 ---
 

@@ -1,4 +1,4 @@
-# ✅ Task List: Glass Vibes Dashboard Implementation
+# ✅ Task List: Vibes Dashboard Implementation
 
 ## Phase 1: Foundation & Base UI
 - [x] **T1.1**: Initialize Node.js project and install dependencies (Express, Socket.io).

@@ -1,4 +1,4 @@
-# 📋 Project Requirements: Glass Vibes Dashboard
+# 📋 Project Requirements: Vibes Dashboard
 
 ## 1. Functional Requirements
 

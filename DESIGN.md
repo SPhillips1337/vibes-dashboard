@@ -1,6 +1,6 @@
 ---
 # Design Tokens
-name: Glass Vibes Dashboard
+name: Vibes Dashboard
 theme: Futuristic Glassmorphism
 tokens:
   colors:
@@ -29,9 +29,9 @@ tokens:
     energy: "Dynamic (0.0 - 1.0)"
 ---
 
-# 🌌 Glass Vibes Dashboard: Design System
+# 🌌 Vibes Dashboard: Design System
 
-This document defines the visual language and component schema for the Glass Vibes Dashboard. AI agents should use these rules to ensure consistency across the UI.
+This document defines the visual language and component schema for the Vibes Dashboard. AI agents should use these rules to ensure consistency across the UI.
 
 ## 🎨 Visual Identity
 The dashboard is a premium, futuristic interface that feels "alive." It uses a **Dark Mode** foundation with **Glassmorphism** overlays.

@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   Glass Vibes Dashboard — Voice Control
+   Vibes Dashboard — Voice Control
    CommandParser, Web Speech API, TTS,
    Toast notifications, Confirm dialogs
    ═══════════════════════════════════════ */
@@ -117,19 +117,19 @@
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
+
       osc.connect(gain);
       gain.connect(ctx.destination);
-      
+
       osc.type = 'sine';
       // Dual-tone futuristic synth beep (C5 to E5)
       osc.frequency.setValueAtTime(523.25, ctx.currentTime);
       osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08);
-      
+
       gain.gain.setValueAtTime(0, ctx.currentTime);
       gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.03); // Soft
       gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
-      
+
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.2);
     } catch (e) {
@@ -314,8 +314,8 @@
       for (const trigger of intent.triggers) {
         const cleanTrigger = trigger.toLowerCase().trim();
         // Match exact or starts with (for params)
-        if (lower === cleanTrigger || lower.startsWith(cleanTrigger + ' ') || 
-            clean === cleanTrigger || clean.startsWith(cleanTrigger + ' ')) {
+        if (lower === cleanTrigger || lower.startsWith(cleanTrigger + ' ') ||
+          clean === cleanTrigger || clean.startsWith(cleanTrigger + ' ')) {
           return intent;
         }
       }
@@ -587,7 +587,7 @@
       state.wakeRecognition.onresult = (e) => {
         const lastResult = e.results[e.results.length - 1];
         const transcript = lastResult[0].transcript.toLowerCase();
-        
+
         // Scan for the wake word "vibes"
         if (transcript.includes('vibes')) {
           console.log('[Voice] Wake word "Vibes" detected!');
@@ -626,7 +626,7 @@
     if (state.wakeRecognition && state.isWakeListening) {
       try {
         state.wakeRecognition.stop();
-      } catch (_) {}
+      } catch (_) { }
       state.isWakeListening = false;
     }
   }

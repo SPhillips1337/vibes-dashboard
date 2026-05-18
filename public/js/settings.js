@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   Glass Vibes Dashboard — Settings Manager
+   Vibes Dashboard — Settings Manager
    Tabbed settings modal, localStorage persistence,
    voice population, LLM connection test
    ═══════════════════════════════════════ */

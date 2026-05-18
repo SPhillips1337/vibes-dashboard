@@ -1,7 +1,7 @@
-# 📐 Technical Specification: Glass Vibes Dashboard
+# 📐 Technical Specification: Vibes Dashboard
 
 ## 1. System Overview
-The Glass Vibes Dashboard is a high-fidelity web interface for orchestrating autonomous subagents. It acts as a bridge between the user and the **Vibes** TUI system, providing a visual management layer with premium aesthetics.
+The Vibes Dashboard is a high-fidelity web interface for orchestrating autonomous subagents. It acts as a bridge between the user and the **Vibes** TUI system, providing a visual management layer with premium aesthetics.
 
 ## 2. Technical Stack
 - **Frontend**: 

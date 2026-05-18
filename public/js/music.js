@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   Glass Vibes Dashboard — Music System
+   Vibes Dashboard — Music System
    AudioContext, Analyser, and Visualizer
    ═══════════════════════════════════════ */
 
@@ -38,8 +38,8 @@
 
   // Sound Effects (Disabled due to external 403 errors)
   const sounds = {
-    click: { play: () => {}, currentTime: 0 },
-    modal: { play: () => {}, currentTime: 0 },
+    click: { play: () => { }, currentTime: 0 },
+    modal: { play: () => { }, currentTime: 0 },
   };
 
   // Icons
@@ -56,7 +56,7 @@
     try {
       const response = await fetch('/api/audio');
       PLAYLIST = await response.json();
-      
+
       if (PLAYLIST.length > 0) {
         renderPlaylist();
         loadTrack(0);
@@ -93,7 +93,7 @@
 
     // Audio Events
     audio.addEventListener('ended', nextTrack);
-    
+
     // Resize visualizer
     window.addEventListener('resize', resizeVisualizer);
     resizeVisualizer();
@@ -180,7 +180,7 @@
       state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
       state.analyser = state.audioContext.createAnalyser();
       state.analyser.fftSize = 256;
-      
+
       state.source = state.audioContext.createMediaElementSource(audio);
       state.source.connect(state.analyser);
       state.analyser.connect(state.audioContext.destination);
@@ -200,7 +200,7 @@
 
   function startVisualizer() {
     if (state.animationId) cancelAnimationFrame(state.animationId);
-    
+
     function draw() {
       state.animationId = requestAnimationFrame(draw);
       if (!state.analyser || !state.isPlaying) return;
@@ -235,11 +235,11 @@
         const mWidth = miniCanvas.width;
         const mHeight = miniCanvas.height;
         const mBarWidth = mWidth / (state.dataArray.length / 2);
-        
+
         mCtx.beginPath();
         mCtx.lineWidth = 2;
         mCtx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
-        
+
         for (let i = 0; i < state.dataArray.length / 2; i++) {
           const val = state.dataArray[i] / 255;
           const x = i * mBarWidth;

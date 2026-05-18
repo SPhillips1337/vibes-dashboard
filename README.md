@@ -2,7 +2,15 @@
 
 Premium glassmorphic dashboard for orchestrating autonomous Vibes subagents. Features real-time agent monitoring, reactive particle backgrounds, an integrated music player with audio frequency visualizer, and voice command control.
 
-## Quick Start
+### 🚀 Quick Install (Linux)
+
+The easiest way to install Vibes and set up the global `vibes` command is using our automated installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SPhillips1337/vibes-dashboard/main/install.sh | bash
+```
+
+## Manual Installation
 
 ```bash
 # Clone the repository
