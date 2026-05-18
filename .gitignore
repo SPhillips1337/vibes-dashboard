@@ -41,3 +41,5 @@ public/audio/*
 certs/
 !.gitkeep
 README.md
+README-TEMPLATE.md
+VOICE-FEATURE-PLAN.md

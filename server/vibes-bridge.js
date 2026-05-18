@@ -186,10 +186,14 @@ class VibesInstance extends EventEmitter {
       }
     });
 
+    this.stderrBuffer = '';
     this.process.stderr.on('data', (data) => {
-      const msg = data.toString().trim();
-      if (msg) {
-        this.emit('status', { log: msg });
+      this.stderrBuffer += data.toString();
+      const lines = this.stderrBuffer.split('\n');
+      this.stderrBuffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed) this.emit('status', { log: trimmed });
       }
     });
 

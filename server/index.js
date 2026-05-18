@@ -276,6 +276,7 @@ async function handleVibesExecution(id, agent) {
 
       agent.status = 'complete';
       agent.progress = 100;
+      agent.completedTasks = agent.totalTasks;
       agent.logs.push({ time: new Date().toISOString(), message: `Mission result: ${text}` });
       io.emit('agent-updated', { id, ...agent });
     }
