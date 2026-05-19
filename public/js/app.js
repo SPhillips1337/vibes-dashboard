@@ -14,12 +14,20 @@
     agents: new Map(),
     currentModalAgentId: null,
     currentDetailAgentId: null,
+    globalLogs: [],
   };
 
   // ── DOM References ──
   const $ = (sel) => document.querySelector(sel);
   const grid = $('#dashboard-grid');
   const addCard = $('#add-agent-card');
+
+  // Views
+  const viewDashboard = $('#view-dashboard');
+  const viewLogs = $('#view-logs');
+  const viewVisualizer = $('#view-visualizer');
+  const globalLogsContent = $('#global-logs-content');
+  const btnClearLogs = $('#btn-clear-logs');
 
   // Stats
   const statActive = $('#stat-active');
@@ -261,7 +269,7 @@
 
     return `
       <div class="card-header">
-        <div class="card-mission">${escapeHtml(agent.mission)}</div>
+        <div class="card-mission">${escapeHtml(getAgentTitle(agent.mission))}</div>
         <button class="card-close" title="Terminate Agent">&times;</button>
       </div>
       <div class="card-body">
@@ -370,11 +378,18 @@
   }
 
   function renderDetail(agent) {
-    detailTitle.textContent = agent.mission;
+    detailTitle.textContent = getAgentTitle(agent.mission);
     detailStatus.textContent = agent.status.charAt(0).toUpperCase() + agent.status.slice(1);
     detailProgress.textContent = `${agent.progress || 0}%`;
     detailCwd.textContent = agent.cwd;
     detailMission.textContent = agent.mission;
+
+    // Toggle Retry Mission button based on status
+    const canRetry = agent.status === 'executing' || agent.status === 'complete' || agent.status === 'error' || agent.status === 'terminated';
+    const retryBtn = $('#detail-retry-btn');
+    if (retryBtn) {
+      retryBtn.classList.toggle('hidden', !canRetry);
+    }
 
     detailTasksList.innerHTML = '';
     (agent.tasks || []).forEach(task => {
@@ -382,11 +397,24 @@
       el.className = `detail-task task-${task.status}`;
       const icon = task.status === 'complete' ? '✓'
         : task.status === 'in-progress' ? '⟳'
-          : '○';
+        : task.status === 'failed' ? '✗'
+        : '○';
       el.innerHTML = `
         <span class="task-icon">${icon}</span>
-        <span>${escapeHtml(task.name)}</span>
+        <span class="task-name-text" style="flex: 1;">${escapeHtml(task.name)}</span>
+        <button class="task-retry-btn" title="Restart from here" data-task-id="${task.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+          </svg>
+        </button>
       `;
+
+      el.querySelector('.task-retry-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        socket.emit('agent-retry-task', { id: agent.id, taskId: task.id });
+        if (window.vibePlayer) window.vibePlayer.playClick();
+      });
+
       detailTasksList.appendChild(el);
     });
 
@@ -430,6 +458,7 @@
     grid.appendChild(createCardElement(agent));
     state.currentModalAgentId = agent.id;
     updateStats();
+    appendGlobalLog(`Agent created: ${getAgentTitle(agent.mission)}`, agent.id, 'info');
   });
 
   socket.on('agent-updated', (agent) => {
@@ -468,6 +497,7 @@
     updateStats();
     if (state.currentDetailAgentId === data.id) closeDetail();
     if (state.currentModalAgentId === data.id) closeModal();
+    appendGlobalLog(`Agent removed: ${data.id}`, 'system', 'danger');
   });
 
   // Live log streaming
@@ -482,6 +512,18 @@
     if (state.currentDetailAgentId === data.id) {
       appendLogLine(data.log);
     }
+    
+    // Determine log type based on content
+    let logType = 'info';
+    if (data.log.toLowerCase().includes('error') || data.log.toLowerCase().includes('fail')) {
+      logType = 'danger';
+    } else if (data.log.toLowerCase().includes('success') || data.log.toLowerCase().includes('completed')) {
+      logType = 'success';
+    } else if (data.log.toLowerCase().includes('warning')) {
+      logType = 'warning';
+    }
+    
+    appendGlobalLog(data.log, agent ? getAgentTitle(agent.mission) : data.id, logType);
   });
 
   socket.on('agent-logs-response', (data) => {
@@ -489,6 +531,41 @@
       renderLogs(data.logs || []);
     }
   });
+
+  // ── Global Logs Functions ──
+  function appendGlobalLog(message, origin = 'system', type = 'info') {
+    const time = new Date().toLocaleTimeString('en-GB');
+    const logEntry = { time, message, origin, type };
+    
+    state.globalLogs.push(logEntry);
+    if (state.globalLogs.length > 500) state.globalLogs.shift();
+    
+    if (globalLogsContent) {
+      const line = document.createElement('div');
+      line.className = 'global-log-line';
+      
+      const badgeClass = `badge-${type}`;
+      line.innerHTML = `
+        <span class="log-time" style="opacity: 0.5; width: 60px; flex-shrink: 0;">${time}</span>
+        <span class="log-origin ${badgeClass}">${escapeHtml(origin)}</span>
+        <span class="log-message" style="flex: 1;">${escapeHtml(message)}</span>
+      `;
+      globalLogsContent.appendChild(line);
+      
+      // Auto-scroll
+      if (globalLogsContent.scrollHeight - globalLogsContent.scrollTop < globalLogsContent.clientHeight + 50) {
+        globalLogsContent.scrollTop = globalLogsContent.scrollHeight;
+      }
+    }
+  }
+
+  if (btnClearLogs) {
+    btnClearLogs.addEventListener('click', () => {
+      state.globalLogs = [];
+      if (globalLogsContent) globalLogsContent.innerHTML = '';
+      appendGlobalLog('System logs cleared.', 'system', 'info');
+    });
+  }
 
   // ── Event Listeners ──
   addCard.addEventListener('click', () => {
@@ -535,6 +612,16 @@
     }
   });
 
+  const detailRetryBtn = $('#detail-retry-btn');
+  if (detailRetryBtn) {
+    detailRetryBtn.addEventListener('click', () => {
+      if (state.currentDetailAgentId) {
+        socket.emit('agent-retry', { id: state.currentDetailAgentId });
+        if (window.vibePlayer) window.vibePlayer.playClick();
+      }
+    });
+  }
+
   // Close modals on escape
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -573,6 +660,38 @@
       // Update page title based on nav
       const title = btn.title || 'Dashboard';
       $('#page-title').textContent = title === 'Dashboard' ? 'Mission Control' : title;
+
+      // Handle View Routing
+      if (btn.id === 'nav-dashboard') {
+        viewDashboard.classList.remove('hidden');
+        viewDashboard.classList.add('active');
+        viewLogs.classList.add('hidden');
+        viewLogs.classList.remove('active');
+        viewVisualizer.classList.add('hidden');
+        viewVisualizer.classList.remove('active');
+      } else if (btn.id === 'nav-logs') {
+        viewDashboard.classList.add('hidden');
+        viewDashboard.classList.remove('active');
+        viewLogs.classList.remove('hidden');
+        viewLogs.classList.add('active');
+        viewVisualizer.classList.add('hidden');
+        viewVisualizer.classList.remove('active');
+        
+        // Scroll to bottom when opening logs
+        if (globalLogsContent) {
+          globalLogsContent.scrollTop = globalLogsContent.scrollHeight;
+        }
+      } else if (btn.id === 'nav-visualizer') {
+        viewDashboard.classList.add('hidden');
+        viewDashboard.classList.remove('active');
+        viewLogs.classList.add('hidden');
+        viewLogs.classList.remove('active');
+        viewVisualizer.classList.remove('hidden');
+        viewVisualizer.classList.add('active');
+        
+        // Trigger resize to fix canvas layout issues
+        window.dispatchEvent(new Event('resize'));
+      }
     });
   });
 
@@ -581,6 +700,30 @@
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  function getAgentTitle(mission) {
+    if (!mission) return 'Unnamed Mission';
+    let title = mission.trim();
+    // Strip common prefixes
+    title = title.replace(/^(please|your task is to|i need you to|can you|help me to)\s+/i, '');
+    // Capitalize first letter
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+    
+    // Truncate to first sentence or first 50 chars
+    const firstSentence = title.split(/[.!?]\s/)[0];
+    if (firstSentence.length > 50) {
+      const words = firstSentence.split(' ');
+      let shortTitle = '';
+      for (const word of words) {
+        if ((shortTitle + ' ' + word).length > 45) {
+          return shortTitle.trim() + '...';
+        }
+        shortTitle += ' ' + word;
+      }
+      return firstSentence.substring(0, 45).trim() + '...';
+    }
+    return firstSentence;
   }
 
 })();

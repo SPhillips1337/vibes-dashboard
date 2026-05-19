@@ -33,8 +33,10 @@
   const playlistEl = document.getElementById('playlist');
   const visualizerCanvas = document.getElementById('player-visualizer');
   const miniCanvas = document.getElementById('mini-visualizer');
+  const mainCanvas = document.getElementById('main-visualizer');
   const vCtx = visualizerCanvas.getContext('2d');
   const mCtx = miniCanvas ? miniCanvas.getContext('2d') : null;
+  const mainCtx = mainCanvas ? mainCanvas.getContext('2d') : null;
 
   // Sound Effects (Disabled due to external 403 errors)
   const sounds = {
@@ -95,8 +97,20 @@
     audio.addEventListener('ended', nextTrack);
 
     // Resize visualizer
-    window.addEventListener('resize', resizeVisualizer);
-    resizeVisualizer();
+    window.addEventListener('resize', resizeVisualizers);
+    resizeVisualizers();
+  }
+
+  function resizeVisualizers() {
+    const rect = visualizerCanvas.parentElement.getBoundingClientRect();
+    visualizerCanvas.width = rect.width;
+    visualizerCanvas.height = rect.height;
+
+    if (mainCanvas && mainCanvas.parentElement) {
+      const mainRect = mainCanvas.parentElement.getBoundingClientRect();
+      mainCanvas.width = mainRect.width || window.innerWidth;
+      mainCanvas.height = mainRect.height || window.innerHeight;
+    }
   }
 
   function renderPlaylist() {
@@ -192,11 +206,7 @@
     }
   }
 
-  function resizeVisualizer() {
-    const rect = visualizerCanvas.parentElement.getBoundingClientRect();
-    visualizerCanvas.width = rect.width;
-    visualizerCanvas.height = rect.height;
-  }
+
 
   function startVisualizer() {
     if (state.animationId) cancelAnimationFrame(state.animationId);
@@ -248,6 +258,50 @@
           else mCtx.lineTo(x, y);
         }
         mCtx.stroke();
+      }
+
+      // Main Visualizer (Circular Glow)
+      if (mainCtx && mainCanvas.offsetParent !== null) {
+        mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+        
+        const cx = mainCanvas.width / 2;
+        const cy = mainCanvas.height / 2;
+        const radius = Math.min(cx, cy) * 0.4;
+        const bars = Math.floor(state.dataArray.length / 2);
+        const angleStep = (Math.PI * 2) / bars;
+
+        // Draw inner glow circle
+        const avg = state.dataArray.reduce((a, b) => a + b) / state.dataArray.length;
+        mainCtx.beginPath();
+        mainCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+        mainCtx.fillStyle = `rgba(59, 130, 246, ${avg / 255 * 0.3})`;
+        mainCtx.fill();
+        mainCtx.shadowBlur = 40;
+        mainCtx.shadowColor = `rgba(59, 130, 246, ${avg / 255})`;
+
+        for (let i = 0; i < bars; i++) {
+          const val = state.dataArray[i] / 255;
+          const barLen = val * radius * 1.2;
+          const angle = i * angleStep;
+
+          const x1 = cx + Math.cos(angle) * radius;
+          const y1 = cy + Math.sin(angle) * radius;
+          const x2 = cx + Math.cos(angle) * (radius + barLen);
+          const y2 = cy + Math.sin(angle) * (radius + barLen);
+
+          mainCtx.beginPath();
+          mainCtx.lineWidth = 6;
+          mainCtx.lineCap = 'round';
+          // Use theme colors
+          const r = Math.min(255, 59 + val * 100);
+          const g = Math.min(255, 130 + i * 2);
+          const b = 246;
+          mainCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.4 + val * 0.6})`;
+          mainCtx.moveTo(x1, y1);
+          mainCtx.lineTo(x2, y2);
+          mainCtx.stroke();
+        }
+        mainCtx.shadowBlur = 0; // reset
       }
 
       // Pulse global background if music is intense

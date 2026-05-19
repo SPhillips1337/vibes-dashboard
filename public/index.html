@@ -171,19 +171,41 @@
         </div>
       </header>
 
-      <!-- Dashboard Grid -->
-      <div id="dashboard-grid">
-
-        <!-- Add New Agent Placeholder -->
-        <div class="agent-card add-card" id="add-agent-card">
-          <div class="add-card-inner">
-            <div class="add-icon">+</div>
-            <span class="add-label">Launch New Agent</span>
+      <!-- Views Container -->
+      <div id="views-container">
+        <!-- Dashboard View -->
+        <div id="view-dashboard" class="main-view active">
+          <div id="dashboard-grid">
+            <!-- Add New Agent Placeholder -->
+            <div class="agent-card add-card" id="add-agent-card">
+              <div class="add-card-inner">
+                <div class="add-icon">+</div>
+                <span class="add-label">Launch New Agent</span>
+              </div>
+            </div>
+            <!-- Agent cards will be injected here by JS -->
           </div>
         </div>
 
-        <!-- Agent cards will be injected here by JS -->
+        <!-- Logs View -->
+        <div id="view-logs" class="main-view hidden">
+          <div class="global-logs-container glass">
+            <div class="global-logs-header">
+              <h2>System Terminal</h2>
+              <button class="btn btn-ghost btn-sm" id="btn-clear-logs">Clear</button>
+            </div>
+            <div id="global-logs-content" class="global-logs-content">
+              <!-- Logs injected by JS -->
+            </div>
+          </div>
+        </div>
 
+        <!-- Visualizer View -->
+        <div id="view-visualizer" class="main-view hidden">
+          <div class="main-visualizer-container">
+            <canvas id="main-visualizer"></canvas>
+          </div>
+        </div>
       </div>
 
       <!-- Music Player Panel -->
@@ -330,6 +352,7 @@
           </svg>
         </button>
         <h2 class="detail-title" id="detail-title">Agent Details</h2>
+        <button class="btn btn-secondary btn-sm" id="detail-retry-btn" style="margin-right: 8px;">Retry Mission</button>
         <button class="btn btn-danger btn-sm" id="detail-terminate-btn">Terminate</button>
       </div>
       <div class="detail-body">

@@ -96,6 +96,20 @@ class VibesBridge extends EventEmitter {
   }
 
   /**
+   * Resolve a pending user intervention request.
+   * @param {string} id
+   * @param {string} action
+   * @param {string} [message]
+   * @param {string} [retryFromTaskId]
+   * @returns {Promise<any>}
+   */
+  async resolveIntervention(id, action, message, retryFromTaskId) {
+    const instance = this.instances.get(id);
+    if (!instance) throw new Error('Agent not found.');
+    return await instance.resolveIntervention(action, message, retryFromTaskId);
+  }
+
+  /**
    * Terminate an agent.
    * @param {string} id
    */
@@ -241,6 +255,17 @@ class VibesInstance extends EventEmitter {
       arguments: {},
     });
     return result;
+  }
+
+  async resolveIntervention(action, message, retryFromTaskId) {
+    return this.sendRequest('tools/call', {
+      name: 'resolve_intervention',
+      arguments: {
+        action,
+        message,
+        retryFromTaskId,
+      },
+    });
   }
 
   sendRequest(method, params, timeoutMs = 30000) {

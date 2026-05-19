@@ -62,6 +62,8 @@ vibesBridge.on('agent-status', (data) => {
               const completedCount = agent.tasks.filter(t => t.status === 'complete').length;
               agent.completedTasks = completedCount;
               agent.progress = Math.round((completedCount / agent.totalTasks) * 100);
+            } else if (taskStatus.status === 'failed') {
+              agent.status = 'error';
             }
             io.emit('agent-updated', { id: data.id, ...agent });
           }
@@ -209,6 +211,7 @@ io.on('connection', (socket) => {
       logs: [],
       createdAt: new Date().toISOString(),
       useVibes: useRealVibes,
+      llmPrefs: data.llmPrefs,
     };
     agents.set(id, agent);
     io.emit('agent-created', { id, ...agent });
@@ -250,11 +253,88 @@ io.on('connection', (socket) => {
     if (agent) {
       agent.status = 'terminated';
       vibesBridge.terminate(data.id);
+      if (activeIntervals.has(data.id)) {
+        clearInterval(activeIntervals.get(data.id));
+        activeIntervals.delete(data.id);
+      }
       io.emit('agent-updated', { id: data.id, ...agent });
       setTimeout(() => {
         agents.delete(data.id);
         io.emit('agent-removed', { id: data.id });
       }, 800);
+    }
+  });
+
+  // Retry full agent execution
+  socket.on('agent-retry', (data) => {
+    const agent = agents.get(data.id);
+    if (!agent) return;
+    
+    if (activeIntervals.has(data.id)) {
+      clearInterval(activeIntervals.get(data.id));
+      activeIntervals.delete(data.id);
+    }
+    
+    agent.status = 'planning';
+    agent.progress = 0;
+    agent.completedTasks = 0;
+    agent.tasks = [];
+    agent.logs = [];
+    agent.error = null;
+    io.emit('agent-updated', { id: data.id, ...agent });
+
+    if (!agent.useVibes) {
+      handleDemoAgent(data.id, agent, true);
+    } else {
+      // Terminate any existing instance first
+      vibesBridge.terminate(data.id);
+      // Start a new instance
+      handleVibesAgent(data.id, agent, agent.llmPrefs, true);
+    }
+  });
+
+  // Retry from a specific task index
+  socket.on('agent-retry-task', (data) => {
+    const agent = agents.get(data.id);
+    if (!agent || !agent.tasks) return;
+    const taskIdx = agent.tasks.findIndex(t => t.id === data.taskId);
+    if (taskIdx === -1) return;
+
+    // Reset this task and all subsequent tasks to pending
+    for (let i = taskIdx; i < agent.tasks.length; i++) {
+      agent.tasks[i].status = 'pending';
+    }
+
+    agent.status = 'executing';
+    
+    // Recalculate progress/completedTasks
+    const completedCount = agent.tasks.filter(t => t.status === 'complete').length;
+    agent.completedTasks = completedCount;
+    agent.progress = Math.round((completedCount / agent.totalTasks) * 100);
+
+    io.emit('agent-updated', { id: data.id, ...agent });
+
+    if (!agent.useVibes) {
+      simulateExecution(data.id, agent, taskIdx);
+    } else {
+      const instance = vibesBridge.instances.get(data.id);
+      if (instance) {
+        // Resolve the pending intervention with 'retry' action and the taskId
+        instance.resolveIntervention('retry', undefined, data.taskId)
+          .catch(err => {
+            console.error(`[Vibes] Failed to resolve intervention for task retry:`, err.message);
+          });
+      } else {
+        // Process is dead. Let's restart the agent.
+        console.warn(`[Vibes] Process not running. Performing full retry instead.`);
+        agent.status = 'planning';
+        agent.progress = 0;
+        agent.completedTasks = 0;
+        agent.tasks = [];
+        agent.logs = [];
+        io.emit('agent-updated', { id: data.id, ...agent });
+        handleVibesAgent(data.id, agent, agent.llmPrefs);
+      }
     }
   });
 
@@ -272,7 +352,7 @@ io.on('connection', (socket) => {
 });
 
 // ── Real Vibes Agent Handler ──
-async function handleVibesAgent(id, agent, llmPrefs) {
+async function handleVibesAgent(id, agent, llmPrefs, autoLaunch = false) {
   try {
     console.log(`[Vibes] Starting real agent planning for: ${agent.mission}`);
     const result = await vibesBridge.createAgent(id, agent.cwd, agent.mission, llmPrefs);
@@ -286,8 +366,14 @@ async function handleVibesAgent(id, agent, llmPrefs) {
         const tasks = JSON.parse(text);
         agent.tasks = tasks;
         agent.totalTasks = tasks.length;
-        agent.status = 'review';
-        io.emit('agent-updated', { id, ...agent });
+        if (autoLaunch) {
+          agent.status = 'executing';
+          io.emit('agent-updated', { id, ...agent });
+          handleVibesExecution(id, agent);
+        } else {
+          agent.status = 'review';
+          io.emit('agent-updated', { id, ...agent });
+        }
       } catch (e) {
         agent.status = 'error';
         agent.error = 'Failed to parse mission plan JSON.';
@@ -325,14 +411,20 @@ async function handleVibesExecution(id, agent) {
 }
 
 // ── Demo Agent Handler ──
-function handleDemoAgent(id, agent) {
+function handleDemoAgent(id, agent, autoLaunch = false) {
   setTimeout(() => {
     if (!agents.has(id)) return;
     const tasks = generateDemoTasks(agent.mission);
     agent.tasks = tasks;
     agent.totalTasks = tasks.length;
-    agent.status = 'review';
-    io.emit('agent-updated', { id, ...agent });
+    if (autoLaunch) {
+      agent.status = 'executing';
+      io.emit('agent-updated', { id, ...agent });
+      simulateExecution(id, agent, 0);
+    } else {
+      agent.status = 'review';
+      io.emit('agent-updated', { id, ...agent });
+    }
   }, 2500);
 }
 
@@ -356,40 +448,53 @@ function generateDemoTasks(mission) {
   }));
 }
 
-// Simulated execution
-function simulateExecution(id, agent) {
-  let taskIndex = 0;
+// Keep track of active simulation intervals
+const activeIntervals = new Map();
+
+// Simulated execution starting from a specific task index
+function simulateExecution(id, agent, startIdx = 0) {
+  if (activeIntervals.has(id)) {
+    clearInterval(activeIntervals.get(id));
+  }
+
+  let taskIndex = startIdx;
   const interval = setInterval(() => {
-    if (!agents.has(id) || agent.status === 'terminated' || agent.status === 'complete') {
+    const currentAgent = agents.get(id);
+    if (!currentAgent || currentAgent.status === 'terminated' || currentAgent.status === 'complete') {
       clearInterval(interval);
+      activeIntervals.delete(id);
       return;
     }
 
-    if (agent.tasks && taskIndex < agent.tasks.length) {
+    if (currentAgent.tasks && taskIndex < currentAgent.tasks.length) {
       const currentIdx = taskIndex;
       taskIndex++; // Increment immediately for the next interval iteration
 
-      agent.tasks[currentIdx].status = 'in-progress';
-      io.emit('agent-updated', { id, ...agent });
+      currentAgent.tasks[currentIdx].status = 'in-progress';
+      io.emit('agent-updated', { id, ...currentAgent });
 
       setTimeout(() => {
-        const currentAgent = agents.get(id);
-        if (!currentAgent || !currentAgent.tasks || !currentAgent.tasks[currentIdx]) return;
+        const liveAgent = agents.get(id);
+        if (!liveAgent || !liveAgent.tasks || !liveAgent.tasks[currentIdx]) return;
 
-        currentAgent.tasks[currentIdx].status = 'complete';
-        currentAgent.completedTasks = currentIdx + 1;
-        currentAgent.progress = Math.round(((currentIdx + 1) / currentAgent.totalTasks) * 100);
+        liveAgent.tasks[currentIdx].status = 'complete';
+        const completedCount = liveAgent.tasks.filter(t => t.status === 'complete').length;
+        liveAgent.completedTasks = completedCount;
+        liveAgent.progress = Math.round((completedCount / liveAgent.totalTasks) * 100);
 
-        if (currentAgent.completedTasks >= currentAgent.totalTasks) {
-          currentAgent.status = 'complete';
+        if (liveAgent.completedTasks >= liveAgent.totalTasks) {
+          liveAgent.status = 'complete';
         }
 
-        io.emit('agent-updated', { id, ...currentAgent });
+        io.emit('agent-updated', { id, ...liveAgent });
       }, 2000 + Math.random() * 3000);
-    } else if (agent.tasks && taskIndex >= agent.tasks.length) {
+    } else if (currentAgent.tasks && taskIndex >= currentAgent.tasks.length) {
       clearInterval(interval);
+      activeIntervals.delete(id);
     }
   }, 4000 + Math.random() * 2000);
+
+  activeIntervals.set(id, interval);
 }
 
 // Cleanup on exit
