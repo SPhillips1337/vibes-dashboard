@@ -196,6 +196,12 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
+body.light-mode #page-title {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 .header-subtitle {
   font-size: 13px;
   color: var(--text-secondary);
@@ -665,6 +671,74 @@ body {
 .form-group input:focus,
 .form-group textarea:focus {
   border-color: var(--primary);
+}
+
+/* Autocomplete */
+.autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 0;
+  width: 100%;
+  background: var(--panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--primary);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 100;
+  list-style: none;
+  padding: 4px 0;
+  box-shadow: var(--shadow);
+}
+.autocomplete-dropdown li {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: var(--transition);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.autocomplete-dropdown li:hover,
+.autocomplete-dropdown li.active {
+  background: var(--surface-hover);
+  color: var(--primary);
+}
+.autocomplete-dropdown.hidden {
+  display: none;
+}
+
+/* Dictate button */
+.btn-dictate {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: var(--primary);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-dictate:hover {
+  background: var(--primary);
+  color: #fff;
+}
+.btn-dictate.recording {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  animation: pulse-danger 1.5s infinite;
+}
+@keyframes pulse-danger {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
 /* Buttons */

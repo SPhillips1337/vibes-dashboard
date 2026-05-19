@@ -27,6 +27,7 @@
     pendingConfirm: null,      // { resolve, reject } for confirm dialog
     wakeRecognition: null,
     isWakeListening: false,
+    wakeSuspended: false,
   };
 
   // ── Settings (loaded from localStorage) ──
@@ -500,6 +501,12 @@
     startListening,
     stopListening,
     handleCommand,
+    playWakeBeep,
+    suspendWakeWord: (suspend) => {
+      state.wakeSuspended = suspend;
+      if (suspend) stopWakeWordListening();
+      else updateWakeWordState();
+    }
   };
 
   // Small helper for escapeHtml
@@ -598,7 +605,7 @@
       state.wakeRecognition.onend = () => {
         state.isWakeListening = false;
         // Auto-restart if still enabled and we aren't in another active state
-        if (generalPrefs.wakeWordEnabled && !state.isListening && !state.isProcessing && !state.micDenied) {
+        if (generalPrefs.wakeWordEnabled && !state.isListening && !state.isProcessing && !state.micDenied && !state.wakeSuspended) {
           setTimeout(startWakeWordListening, 300);
         }
       };

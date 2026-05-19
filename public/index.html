@@ -263,12 +263,23 @@
           <button class="modal-close" id="modal-close-btn">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="form-group">
+          <div class="form-group" style="position: relative;">
             <label for="input-cwd">Working Directory</label>
-            <input type="text" id="input-cwd" placeholder="/home/user/project" value="">
+            <input type="text" id="input-cwd" placeholder="/home/user/project" value="" autocomplete="off">
+            <ul id="cwd-suggestions" class="autocomplete-dropdown hidden"></ul>
           </div>
-          <div class="form-group">
-            <label for="input-mission">Mission</label>
+          <div class="form-group" style="position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label for="input-mission" style="margin-bottom: 0;">Mission</label>
+              <button id="btn-dictate-mission" class="btn-dictate" title="Dictate Mission" type="button" aria-label="Dictate Mission">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              </button>
+            </div>
             <textarea id="input-mission" rows="4" placeholder="Describe the agent's objective..."></textarea>
           </div>
         </div>
@@ -500,7 +511,7 @@
           </div>
         </div>
 
-        <div class="llm-fields hidden" id="llm-fields-openai">
+        <div class="llm-fields hidden" id="llm-fields-openai-compatible">
           <div class="setting-row">
             <div class="setting-info">
               <span class="setting-label">Host URL</span>

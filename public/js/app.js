@@ -32,9 +32,151 @@
   const stepLoading = $('#modal-step-loading');
   const stepReview = $('#modal-step-review');
   const inputCwd = $('#input-cwd');
+  const cwdSuggestions = $('#cwd-suggestions');
   const inputMission = $('#input-mission');
+  const btnDictateMission = $('#btn-dictate-mission');
   const reviewMission = $('#review-mission');
   const reviewTasksList = $('#review-tasks-list');
+
+  // ── Auto Path Completion ──
+  let cwdDebounce;
+  let cwdSuggestionIndex = -1;
+
+  function updateCwdSelection() {
+    const items = cwdSuggestions.querySelectorAll('li');
+    items.forEach((item, index) => {
+      if (index === cwdSuggestionIndex) {
+        item.classList.add('active');
+        item.scrollIntoView({ block: 'nearest' });
+      } else {
+        item.classList.remove('active');
+      }
+    });
+  }
+
+  inputCwd.addEventListener('keydown', (e) => {
+    if (cwdSuggestions.classList.contains('hidden')) return;
+    const items = cwdSuggestions.querySelectorAll('li');
+    if (!items.length) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      cwdSuggestionIndex = (cwdSuggestionIndex + 1) % items.length;
+      updateCwdSelection();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      cwdSuggestionIndex = (cwdSuggestionIndex - 1 + items.length) % items.length;
+      updateCwdSelection();
+    } else if (e.key === 'Enter' && cwdSuggestionIndex >= 0) {
+      e.preventDefault();
+      items[cwdSuggestionIndex].click();
+    } else if (e.key === 'Escape') {
+      cwdSuggestions.classList.add('hidden');
+    }
+  });
+
+  inputCwd.addEventListener('input', () => {
+    clearTimeout(cwdDebounce);
+    cwdSuggestionIndex = -1;
+    const val = inputCwd.value;
+    if (!val || val.length < 1) {
+      cwdSuggestions.classList.add('hidden');
+      return;
+    }
+    cwdDebounce = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/fs/suggestions?path=${encodeURIComponent(val)}`);
+        const suggestions = await res.json();
+        if (suggestions.length > 0) {
+          cwdSuggestions.innerHTML = '';
+          suggestions.forEach(s => {
+            const li = document.createElement('li');
+            li.textContent = s;
+            li.addEventListener('click', () => {
+              inputCwd.value = s;
+              cwdSuggestions.classList.add('hidden');
+              inputCwd.focus();
+            });
+            cwdSuggestions.appendChild(li);
+          });
+          cwdSuggestions.classList.remove('hidden');
+        } else {
+          cwdSuggestions.classList.add('hidden');
+        }
+      } catch (e) {
+        cwdSuggestions.classList.add('hidden');
+      }
+    }, 200);
+  });
+  
+  // Close suggestions when clicking outside
+  document.addEventListener('click', (e) => {
+    if (e.target !== inputCwd && e.target !== cwdSuggestions) {
+      cwdSuggestions.classList.add('hidden');
+    }
+  });
+
+  // ── Voice Dictation ──
+  let missionRecognition = null;
+  btnDictateMission.addEventListener('click', () => {
+    if (btnDictateMission.classList.contains('recording') && missionRecognition) {
+      missionRecognition.stop();
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Your browser doesn't support speech recognition.");
+      return;
+    }
+
+    // Suspend background wake word to avoid conflicts and play start sound
+    if (window.VoiceCommands) {
+      window.VoiceCommands.suspendWakeWord(true);
+      window.VoiceCommands.playWakeBeep();
+    }
+
+    missionRecognition = new SpeechRecognition();
+    missionRecognition.lang = 'en-US';
+    missionRecognition.interimResults = true;
+    
+    missionRecognition.onstart = () => {
+      btnDictateMission.classList.add('recording');
+      inputMission.placeholder = "Listening...";
+    };
+    
+    let finalTranscript = inputMission.value ? inputMission.value + " " : "";
+    
+    missionRecognition.onresult = (event) => {
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+      inputMission.value = finalTranscript + interimTranscript;
+    };
+    
+    missionRecognition.onerror = (e) => {
+      console.warn('[Dictation] Error:', e.error);
+      btnDictateMission.classList.remove('recording');
+      inputMission.placeholder = "Describe the agent's objective...";
+      if (window.VoiceCommands) window.VoiceCommands.suspendWakeWord(false);
+    };
+    
+    missionRecognition.onend = () => {
+      btnDictateMission.classList.remove('recording');
+      inputMission.placeholder = "Describe the agent's objective...";
+      if (window.VoiceCommands) window.VoiceCommands.suspendWakeWord(false);
+    };
+    
+    // Start recognition after a tiny delay so the beep doesn't trigger audio ducking/conflicts
+    setTimeout(() => {
+      missionRecognition.start();
+    }, 150);
+  });
 
   // Detail
   const detailOverlay = $('#agent-detail-overlay');

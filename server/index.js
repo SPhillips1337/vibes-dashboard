@@ -144,6 +144,42 @@ app.get('/api/agents/:id/status', async (req, res) => {
   res.json({ status });
 });
 
+// REST API — FS path suggestions for autocomplete
+app.get('/api/fs/suggestions', (req, res) => {
+  const query = req.query.path || '';
+  if (!query) return res.json([]);
+  
+  try {
+    let dirToRead = query;
+    let filePrefix = '';
+    
+    if (!query.endsWith(path.sep)) {
+      dirToRead = path.dirname(query);
+      filePrefix = path.basename(query);
+    }
+    
+    if (!fs.existsSync(dirToRead)) {
+      return res.json([]);
+    }
+
+    const files = fs.readdirSync(dirToRead, { withFileTypes: true });
+    const suggestions = files
+      .filter(dirent => {
+        try {
+          return dirent.isDirectory();
+        } catch (e) {
+          return false;
+        }
+      })
+      .filter(dirent => dirent.name.toLowerCase().startsWith(filePrefix.toLowerCase()))
+      .map(dirent => path.join(dirToRead, dirent.name) + path.sep);
+
+    res.json(suggestions.slice(0, 10));
+  } catch (err) {
+    res.json([]);
+  }
+});
+
 // WebSocket events
 io.on('connection', (socket) => {
   console.log(`[Dashboard] Client connected: ${socket.id}`);
