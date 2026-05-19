@@ -304,10 +304,11 @@
         mainCtx.shadowBlur = 0; // reset
       }
 
-      // Pulse global background if music is intense
-      const average = state.dataArray.reduce((a, b) => a + b) / state.dataArray.length;
+      // Feed audio data to the immersive background engine
       if (window.bgEffect) {
-        window.bgEffect.setEnergy(average / 255);
+        window.bgEffect.setAudioData(state.dataArray);
+        const average = state.dataArray.reduce((a, b) => a + b) / state.dataArray.length;
+        window.bgEffect.setEnergy(Math.max(0.15, average / 255));
         document.documentElement.style.setProperty('--glow-opacity', 0.1 + (average / 255) * 0.4);
       }
     }

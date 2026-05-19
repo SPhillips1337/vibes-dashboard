@@ -5,48 +5,48 @@
 :root {
   --primary: #3b82f6;
   --secondary: #60a5fa;
-  --bg: #0a0a0c;
-  --surface: rgba(20, 20, 25, 0.7);
-  --surface-hover: rgba(255, 255, 255, 0.05);
-  --border: rgba(255, 255, 255, 0.1);
+  --bg: #080810;
+  --surface: rgba(12, 12, 18, 0.55);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --glass-blur: 12px;
+  --glass-blur: 16px;
   --radius: 16px;
   --radius-sm: 10px;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --glow-opacity: 0.1;
-  --sidebar-bg: rgba(10, 10, 12, 0.98);
-  --panel-bg: rgba(20, 20, 25, 0.85);
-  --add-card-border: rgba(255, 255, 255, 0.15);
+  --sidebar-bg: rgba(8, 8, 14, 0.7);
+  --panel-bg: rgba(12, 12, 18, 0.75);
+  --add-card-border: rgba(255, 255, 255, 0.12);
   --add-card-bg: rgba(255, 255, 255, 0.02);
   --add-card-text: rgba(255, 255, 255, 0.3);
   --add-card-hover-border: #ffffff;
-  --add-card-hover-bg: rgba(255, 255, 255, 0.04);
+  --add-card-hover-bg: rgba(255, 255, 255, 0.06);
   --add-card-hover-text: #ffffff;
   --volume-bg: rgba(255, 255, 255, 0.1);
   --input-bg: rgba(255, 255, 255, 0.04);
 }
 
 body.light-mode {
-  --bg: #f1f5f9;
-  --surface: rgba(255, 255, 255, 0.6);
+  --bg: #eef2f7;
+  --surface: rgba(255, 255, 255, 0.45);
   --surface-hover: rgba(0, 0, 0, 0.05);
-  --border: rgba(0, 0, 0, 0.1);
+  --border: rgba(0, 0, 0, 0.08);
   --text-primary: #0f172a;
   --text-secondary: #475569;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --sidebar-bg: rgba(255, 255, 255, 0.9);
-  --panel-bg: rgba(255, 255, 255, 0.85);
-  --add-card-border: rgba(15, 23, 42, 0.2);
-  --add-card-bg: rgba(15, 23, 42, 0.05);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --sidebar-bg: rgba(255, 255, 255, 0.6);
+  --panel-bg: rgba(255, 255, 255, 0.65);
+  --add-card-border: rgba(15, 23, 42, 0.15);
+  --add-card-bg: rgba(15, 23, 42, 0.03);
   --add-card-text: rgba(15, 23, 42, 0.4);
   --add-card-hover-border: rgba(15, 23, 42, 0.4);
-  --add-card-hover-bg: rgba(15, 23, 42, 0.1);
+  --add-card-hover-bg: rgba(15, 23, 42, 0.08);
   --add-card-hover-text: rgba(15, 23, 42, 0.8);
   --volume-bg: rgba(15, 23, 42, 0.15);
   --input-bg: rgba(0, 0, 0, 0.03);
@@ -65,6 +65,19 @@ body {
   overflow: hidden;
   width: 100vw;
   height: 100vh;
+}
+
+/* Ensure transparent backgrounds let the canvas bleed through */
+#main-content {
+  background: transparent;
+}
+
+#views-container {
+  background: transparent;
+}
+
+.main-view {
+  background: transparent;
 }
 
 #bg-canvas {
@@ -329,7 +342,8 @@ body.light-mode #page-title {
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -342,7 +356,7 @@ body.light-mode #page-title {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .global-logs-header h2 {
@@ -391,6 +405,8 @@ body.light-mode #page-title {
   justify-content: center;
   position: relative;
   overflow: hidden;
+  /* Fully transparent — the bg-canvas IS the visualizer */
+  background: transparent;
 }
 
 #main-visualizer {
@@ -399,6 +415,92 @@ body.light-mode #page-title {
   position: absolute;
   top: 0;
   left: 0;
+  /* Hidden — background canvas replaces this */
+  display: none;
+}
+
+/* Visualizer mode navigation arrows */
+.viz-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  color: #fff;
+  font-size: 32px;
+  font-weight: 300;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0.5;
+  line-height: 1;
+  padding-bottom: 2px;
+}
+
+.viz-arrow:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+.viz-arrow-left { left: 24px; }
+.viz-arrow-right { right: 24px; }
+
+.viz-mode-label {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 6px 20px;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.viz-mode-label.flash {
+  animation: labelFlash 0.6s ease;
+}
+
+@keyframes labelFlash {
+  0% { opacity: 1; color: #fff; }
+  100% { opacity: 1; color: rgba(255, 255, 255, 0.6); }
+}
+
+body.light-mode .viz-arrow {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1e293b;
+}
+
+body.light-mode .viz-arrow:hover {
+  background: rgba(0, 0, 0, 0.12);
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+body.light-mode .viz-mode-label {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: rgba(15, 23, 42, 0.6);
 }
 
 /* ── Dashboard Grid ── */
@@ -428,7 +530,8 @@ body.light-mode #page-title {
 /* ── Agent Card ── */
 .agent-card {
   background: var(--surface);
-  backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 24px;
