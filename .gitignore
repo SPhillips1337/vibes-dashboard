@@ -43,3 +43,6 @@ certs/
 README.md
 README-TEMPLATE.md
 VOICE-FEATURE-PLAN.md
+
+# Settings persistence
+settings.json

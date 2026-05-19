@@ -214,7 +214,29 @@
 
   themeToggle.addEventListener('click', () => {
     const isLight = document.body.classList.toggle('light-mode');
-    localStorage.setItem('vibes-theme', isLight ? 'light' : 'dark');
+    const theme = isLight ? 'light' : 'dark';
+    localStorage.setItem('vibes-theme', theme);
+
+    // Sync theme with vibes-general-prefs too
+    let generalPrefs = { autoLaunchOnCommand: true, theme: theme };
+    try {
+      const raw = localStorage.getItem('vibes-general-prefs');
+      if (raw) {
+        generalPrefs = { ...JSON.parse(raw), theme: theme };
+      }
+    } catch (_) {}
+    localStorage.setItem('vibes-general-prefs', JSON.stringify(generalPrefs));
+
+    // Save theme to server filesystem
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        'vibes-theme': theme,
+        'vibes-general-prefs': generalPrefs
+      })
+    }).catch(err => console.error('[Settings] Failed to save theme to server:', err));
+
     sunIcon.classList.toggle('hidden');
     moonIcon.classList.toggle('hidden');
     if (window.vibePlayer) window.vibePlayer.playClick();

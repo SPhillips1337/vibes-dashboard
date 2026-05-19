@@ -182,6 +182,44 @@ app.get('/api/fs/suggestions', (req, res) => {
   }
 });
 
+// REST API — load settings from settings.json in project root
+app.get('/api/settings', (req, res) => {
+  const settingsPath = path.join(__dirname, '..', 'settings.json');
+  if (fs.existsSync(settingsPath)) {
+    try {
+      const data = fs.readFileSync(settingsPath, 'utf8');
+      return res.json(JSON.parse(data));
+    } catch (err) {
+      console.error('[Settings] Error reading settings file:', err);
+      return res.status(500).json({ error: 'Failed to read settings' });
+    }
+  }
+  res.json({});
+});
+
+// REST API — save settings to settings.json in project root (merging with existing settings)
+app.post('/api/settings', (req, res) => {
+  const settingsPath = path.join(__dirname, '..', 'settings.json');
+  let currentSettings = {};
+  try {
+    if (fs.existsSync(settingsPath)) {
+      currentSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    }
+  } catch (err) {
+    console.warn('[Settings] Failed to read existing settings before saving:', err.message);
+  }
+
+  const newSettings = { ...currentSettings, ...req.body };
+
+  try {
+    fs.writeFileSync(settingsPath, JSON.stringify(newSettings, null, 2), 'utf8');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Settings] Error writing settings file:', err);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
 // WebSocket events
 io.on('connection', (socket) => {
   console.log(`[Dashboard] Client connected: ${socket.id}`);

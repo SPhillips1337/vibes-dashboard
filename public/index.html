@@ -16,6 +16,56 @@
 
 <body>
 
+  <script>
+    // Synchronously sync settings from server to localStorage before page rendering & script loading
+    (function () {
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/settings', false); // Synchronous request
+        xhr.send(null);
+        if (xhr.status === 200) {
+          const settings = JSON.parse(xhr.responseText);
+          const keys = Object.keys(settings);
+          if (keys.length > 0) {
+            for (const [key, val] of Object.entries(settings)) {
+              if (val !== null && val !== undefined) {
+                if (typeof val === 'object') {
+                  localStorage.setItem(key, JSON.stringify(val));
+                } else {
+                  localStorage.setItem(key, val);
+                }
+              }
+            }
+          } else {
+            // Server has no settings yet. Let's push whatever the client currently has in localStorage.
+            const initialPrefs = {};
+            const prefKeys = ['vibes-voice-prefs', 'vibes-general-prefs', 'vibes-llm-prefs', 'vibes-orchestration-prefs', 'vibes-theme'];
+            prefKeys.forEach(k => {
+              const val = localStorage.getItem(k);
+              if (val) {
+                try {
+                  initialPrefs[k] = JSON.parse(val);
+                } catch (_) {
+                  initialPrefs[k] = val;
+                }
+              }
+            });
+            if (Object.keys(initialPrefs).length > 0) {
+              // Asynchronously post to server so we don't block rendering
+              fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(initialPrefs)
+              }).catch(err => console.warn('[Settings] Failed to initialize server settings:', err));
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[Settings] Failed to sync settings from server:', e);
+      }
+    })();
+  </script>
+
   <!-- Animated Background Canvas -->
   <canvas id="bg-canvas"></canvas>
 

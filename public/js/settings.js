@@ -370,6 +370,19 @@
     }
     localStorage.setItem('vibes-theme', theme);
 
+    // Save to server filesystem
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        'vibes-voice-prefs': { voice, rate, volume, feedbackEnabled },
+        'vibes-general-prefs': { autoLaunchOnCommand, wakeWordEnabled, theme },
+        'vibes-llm-prefs': { provider, hostUrl, model, apiKey, maxTokens },
+        'vibes-orchestration-prefs': { executionMode, vibesPath },
+        'vibes-theme': theme
+      })
+    }).catch(err => console.error('[Settings] Failed to save settings to server:', err));
+
     // Dispatch event for other modules
     document.dispatchEvent(new CustomEvent('settings-changed'));
 
