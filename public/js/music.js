@@ -142,6 +142,34 @@
       item.classList.toggle('active', i === index);
     });
 
+    // Auto-map visualizer background mode to track names/themes
+    if (window.bgEffect && track && track.name) {
+      const name = track.name.toLowerCase();
+      if (name.includes('cyber') || name.includes('synth') || name.includes('neon') || name.includes('grid')) {
+        window.bgEffect.setMode('Cyber Stream');
+      } else if (name.includes('fire') || name.includes('ember') || name.includes('flame') || name.includes('heat')) {
+        window.bgEffect.setMode('Ember Storm');
+      } else if (name.includes('void') || name.includes('singularity') || name.includes('black hole') || name.includes('gargantua') || name.includes('space') || name.includes('gravity')) {
+        window.bgEffect.setMode('Gargantua Singularity');
+      } else if (name.includes('aurora') || name.includes('wave') || name.includes('flow') || name.includes('ambient') || name.includes('chill') || name.includes('dream') || name.includes('sky')) {
+        window.bgEffect.setMode('Aurora Waves');
+      } else if (name.includes('lightning') || name.includes('electricity') || name.includes('thunder') || name.includes('volt') || name.includes('storm')) {
+        window.bgEffect.setMode('Electrical Storm');
+      } else if (name.includes('gear') || name.includes('clock') || name.includes('kinetic') || name.includes('mechanism') || name.includes('time') || name.includes('machine')) {
+        window.bgEffect.setMode('Kinetic Clockwork');
+      } else {
+        window.bgEffect.setMode('Nebula Flow');
+      }
+
+      // Update UI mode selector label if it exists in the DOM
+      const vizModeLabel = document.getElementById('viz-mode-label');
+      if (vizModeLabel) {
+        vizModeLabel.textContent = window.bgEffect.getCurrentModeName();
+        vizModeLabel.classList.add('flash');
+        setTimeout(() => { vizModeLabel.classList.remove('flash'); }, 600);
+      }
+    }
+
     if (autoPlay) {
       playTrack();
     }

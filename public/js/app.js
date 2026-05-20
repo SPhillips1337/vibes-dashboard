@@ -290,7 +290,10 @@
     card.querySelector('.card-close').addEventListener('click', (e) => {
       e.stopPropagation();
       socket.emit('agent-terminate', { id: agent.id });
-      if (window.bgEffect) window.bgEffect.pulse();
+      if (window.bgEffect) {
+        window.bgEffect.pulse();
+        window.bgEffect.triggerEvent('terminate', e.clientX, e.clientY);
+      }
     });
 
     // Click to expand
@@ -339,7 +342,10 @@
     card.querySelector('.card-close').addEventListener('click', (e) => {
       e.stopPropagation();
       socket.emit('agent-terminate', { id: agent.id });
-      if (window.bgEffect) window.bgEffect.pulse();
+      if (window.bgEffect) {
+        window.bgEffect.pulse();
+        window.bgEffect.triggerEvent('terminate', e.clientX, e.clientY);
+      }
     });
   }
 
@@ -499,6 +505,7 @@
     if (window.bgEffect) {
       window.bgEffect.setHue(260);
       window.bgEffect.pulse();
+      window.bgEffect.triggerEvent('agent-created');
     }
   });
 
@@ -530,9 +537,11 @@
       if (agent.status === 'complete') {
         window.bgEffect.setHue(140); // emerald success
         window.bgEffect.pulse();
+        window.bgEffect.triggerEvent('task-complete');
         setTimeout(() => window.bgEffect.setHue(220), 4000);
       } else if (agent.status === 'error') {
         window.bgEffect.setHue(15); // warm ember warning
+        window.bgEffect.triggerEvent('error');
         setTimeout(() => window.bgEffect.setHue(220), 3000);
       } else if (agent.status === 'executing') {
         window.bgEffect.setHue(200); // ocean blue
@@ -566,8 +575,10 @@
     let logType = 'info';
     if (data.log.toLowerCase().includes('error') || data.log.toLowerCase().includes('fail')) {
       logType = 'danger';
+      if (window.bgEffect) window.bgEffect.triggerEvent('error');
     } else if (data.log.toLowerCase().includes('success') || data.log.toLowerCase().includes('completed')) {
       logType = 'success';
+      if (window.bgEffect) window.bgEffect.triggerEvent('task-complete');
     } else if (data.log.toLowerCase().includes('warning')) {
       logType = 'warning';
     }
@@ -653,11 +664,15 @@
     closeDetail();
     if (window.vibePlayer) window.vibePlayer.playClick();
   });
-  $('#detail-terminate-btn').addEventListener('click', () => {
+  $('#detail-terminate-btn').addEventListener('click', (e) => {
     if (state.currentDetailAgentId) {
       socket.emit('agent-terminate', { id: state.currentDetailAgentId });
       closeDetail();
       if (window.vibePlayer) window.vibePlayer.playClick();
+      if (window.bgEffect) {
+        window.bgEffect.pulse();
+        window.bgEffect.triggerEvent('terminate', e.clientX, e.clientY);
+      }
     }
   });
 

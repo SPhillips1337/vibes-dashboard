@@ -78,6 +78,74 @@
   const RAIN_COUNT = 120;
   const rain = [];
 
+  const SINGULARITY_PARTICLE_COUNT = 120;
+  const singularityParticles = [];
+  const gears = [];
+
+  // ── System Event Particles & Flashes ──
+  const eventParticles = [];
+  let flashIntensity = 0;
+  let flashColor = '255, 255, 255';
+
+  class EventParticle {
+    constructor(x, y, color) {
+      this.x = x;
+      this.y = y;
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 5 + 2;
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed;
+      this.size = Math.random() * 3 + 2;
+      this.life = 1.0;
+      this.decay = Math.random() * 0.015 + 0.015;
+      this.color = color;
+    }
+    update(dt) {
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.vx *= 0.96;
+      this.vy *= 0.96;
+      this.life -= this.decay * dt;
+    }
+    draw() {
+      ctx.fillStyle = this.color.replace('opacity', this.life * 0.9);
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * this.life, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ── Auto-rotation System ──
+  let autoRotateInterval = null;
+  let autoRotateEnabled = true;
+
+  function startAutoRotate() {
+    stopAutoRotate();
+    if (!autoRotateEnabled) return;
+    autoRotateInterval = setInterval(() => {
+      const current = state.currentModeIndex;
+      let next = current;
+      while (next === current) {
+        next = Math.floor(Math.random() * MODES.length);
+      }
+      window.bgEffect.setMode(next);
+      
+      const vizModeLabel = document.getElementById('viz-mode-label');
+      if (vizModeLabel) {
+        vizModeLabel.textContent = window.bgEffect.getCurrentModeName();
+        vizModeLabel.classList.add('flash');
+        setTimeout(() => { vizModeLabel.classList.remove('flash'); }, 600);
+      }
+    }, 60000);
+  }
+
+  function stopAutoRotate() {
+    if (autoRotateInterval) {
+      clearInterval(autoRotateInterval);
+      autoRotateInterval = null;
+    }
+  }
+
   // ── Particle (Nebula Flow) ──
   class Particle {
     constructor() { this.reset(true); }
@@ -459,6 +527,135 @@
     }
   }
 
+  class SingularityParticle {
+    constructor() {
+      this.reset();
+    }
+    reset() {
+      const Rs = Math.min(width || 800, height || 600) * 0.09;
+      this.radius = Math.random() * (Rs * 6.5) + Rs * 1.25;
+      this.angle = Math.random() * Math.PI * 2;
+      this.speed = Math.sqrt(Rs / this.radius) * 0.035;
+      this.size = Math.random() * 2 + 1;
+      this.opacity = Math.random() * 0.6 + 0.35;
+    }
+    update(dt) {
+      const Rs = Math.min(width || 800, height || 600) * 0.09;
+      this.angle += this.speed * dt * (1 + state.energy * 2.0);
+      if (this.radius < Rs) this.reset();
+    }
+    draw(cx, cy, Rs, isLight) {
+      const cosA = Math.cos(this.angle);
+      const sinA = Math.sin(this.angle);
+      
+      const diskX = cosA * this.radius;
+      const diskY = sinA * this.radius * 0.28;
+      const z = sinA * this.radius;
+      
+      const approach = -cosA;
+      const doppler = Math.max(0.18, 1 + approach * 0.65);
+      
+      let projectedX = diskX;
+      let projectedY = diskY;
+      
+      if (z < 0) {
+        const dist = Math.sqrt(diskX * diskX + diskY * diskY);
+        if (dist > Rs) {
+          const warp = (Rs * Rs) / dist;
+          projectedY -= Math.sign(diskY || 1) * warp * 1.6;
+        }
+      }
+      
+      const screenX = cx + projectedX;
+      const screenY = cy + projectedY;
+      
+      const shiftHue = approach > 0 
+        ? (state.hue2 + approach * 45) % 360  
+        : (state.hue1 - Math.abs(approach) * 35 + 360) % 360;
+        
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, this.size * doppler * (1 + state.audioAvg * 0.6), 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${shiftHue}, 90%, 65%, ${this.opacity * doppler})`;
+      ctx.fill();
+    }
+  }
+
+  class ClockworkGear {
+    constructor(xRel, yRel, radius, teeth, speed, hueOffset = 0) {
+      this.xRel = xRel;
+      this.yRel = yRel;
+      this.radius = radius;
+      this.teeth = teeth;
+      this.speed = speed;
+      this.angle = Math.random() * Math.PI;
+      this.hueOffset = hueOffset;
+    }
+    update(dt, energy) {
+      this.angle += this.speed * dt * (0.4 + energy * 2.8);
+    }
+    draw(cx, cy, isLight) {
+      const x = cx + this.xRel;
+      const y = cy + this.yRel;
+      
+      ctx.beginPath();
+      const toothDepth = 12;
+      const totalPoints = this.teeth * 4;
+      
+      for (let i = 0; i < totalPoints; i++) {
+        const angle = this.angle + (i * Math.PI * 2) / totalPoints;
+        const phase = i % 4;
+        let r = this.radius;
+        if (phase === 0 || phase === 1) {
+          r += toothDepth;
+        }
+        
+        const px = x + Math.cos(angle) * r;
+        const py = y + Math.sin(angle) * r;
+        
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      
+      const h = (state.hue1 + this.hueOffset) % 360;
+      ctx.strokeStyle = `hsla(${h}, 70%, ${isLight ? '45%' : '60%'}, 0.22)`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      ctx.fillStyle = `hsla(${h}, 60%, ${isLight ? '90%' : '15%'}, 0.04)`;
+      ctx.fill();
+      
+      // Inner circular rim
+      ctx.beginPath();
+      ctx.arc(x, y, this.radius - 8, 0, Math.PI * 2);
+      ctx.strokeStyle = `hsla(${h}, 70%, ${isLight ? '40%' : '65%'}, 0.12)`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      // Center axle
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${h}, 80%, ${isLight ? '40%' : '70%'}, 0.3)`;
+      ctx.fill();
+      
+      // Spokes
+      const spokes = 4;
+      ctx.beginPath();
+      for (let s = 0; s < spokes; s++) {
+        const spokeAngle = this.angle + (s * Math.PI * 2) / spokes;
+        const x1 = x + Math.cos(spokeAngle) * 6;
+        const y1 = y + Math.sin(spokeAngle) * 6;
+        const x2 = x + Math.cos(spokeAngle) * (this.radius - 8);
+        const y2 = y + Math.sin(spokeAngle) * (this.radius - 8);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.strokeStyle = `hsla(${h}, 70%, ${isLight ? '45%' : '60%'}, 0.12)`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
   function drawLightningBolt(x1, y1, x2, y2, segments, displacement) {
     if (segments === 0) {
       ctx.beginPath();
@@ -490,6 +687,21 @@
 
     rain.length = 0;
     for (let i = 0; i < RAIN_COUNT; i++) rain.push(new RainDrop());
+
+    singularityParticles.length = 0;
+    for (let i = 0; i < SINGULARITY_PARTICLE_COUNT; i++) singularityParticles.push(new SingularityParticle());
+
+    gears.length = 0;
+    gears.push(new ClockworkGear(0, 0, 70, 12, 0.004, 0));
+    gears.push(new ClockworkGear(0, -115, 45, 8, -0.006, 40));
+    gears.push(new ClockworkGear(0, 115, 45, 8, -0.006, 40));
+    gears.push(new ClockworkGear(-115, 0, 45, 8, -0.006, 80));
+    gears.push(new ClockworkGear(115, 0, 45, 8, -0.006, 80));
+    
+    const w = width || window.innerWidth || 800;
+    const h = height || window.innerHeight || 600;
+    gears.push(new ClockworkGear(-w * 0.35, h * 0.22, 220, 36, 0.0008, -30));
+    gears.push(new ClockworkGear(w * 0.35, -h * 0.22, 260, 42, -0.0006, -60));
   }
 
   // ── Audio-Reactive Ring ──
@@ -651,6 +863,98 @@
         });
         drawLightningStorm();
       }
+    },
+    {
+      name: 'Gargantua Singularity',
+      draw: (dt, isLight) => {
+        const cx = width / 2;
+        const cy = height / 2;
+        const Rs = Math.min(width, height) * 0.088;
+
+        // Draw grav-lensed stars
+        stars.forEach(s => {
+          const twinkle = Math.sin(state.time * s.twinkleSpeed + s.phase) * 0.45 + 0.55;
+          const dx = s.x - cx;
+          const dy = s.y - cy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist > Rs) {
+            const factor = 1 + (Rs * Rs) / (dist * dist);
+            const lx = cx + dx * factor;
+            const ly = cy + dy * factor;
+            ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha * twinkle * 0.9})`;
+            ctx.beginPath();
+            ctx.arc(lx, ly, s.size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        });
+
+        // 1. Accretion disk behind the singularity (z < 0)
+        singularityParticles.forEach(p => {
+          p.update(dt);
+          const sinA = Math.sin(p.angle);
+          const z = sinA * p.radius;
+          if (z < 0) {
+            p.draw(cx, cy, Rs, isLight);
+          }
+        });
+
+        // 2. The dark event horizon shadow
+        ctx.beginPath();
+        ctx.arc(cx, cy, Rs, 0, Math.PI * 2);
+        ctx.fillStyle = '#010103';
+        ctx.fill();
+
+        // 3. Accretion disk in front of the singularity (z >= 0)
+        singularityParticles.forEach(p => {
+          const sinA = Math.sin(p.angle);
+          const z = sinA * p.radius;
+          if (z >= 0) {
+            p.draw(cx, cy, Rs, isLight);
+          }
+        });
+
+        // 4. Glowing Einstein / Photon Ring overlay
+        ctx.beginPath();
+        ctx.arc(cx, cy, Rs + 1.2, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsla(28, 85%, 60%, ${0.35 + state.audioAvg * 0.55})`;
+        ctx.lineWidth = 2 + state.audioBass * 3;
+        ctx.stroke();
+      }
+    },
+    {
+      name: 'Kinetic Clockwork',
+      draw: (dt, isLight) => {
+        const cx = width / 2;
+        const cy = height / 2;
+        
+        // Connect planet gear centers with mechanical frames
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        for (let i = 1; i <= 4; i++) {
+          const g = gears[i];
+          if (g) {
+            ctx.lineTo(cx + g.xRel, cy + g.yRel);
+            ctx.moveTo(cx, cy);
+          }
+        }
+        ctx.strokeStyle = `hsla(${state.hue1}, 50%, 55%, ${isLight ? 0.12 : 0.08})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Update and draw gears
+        gears.forEach(g => {
+          g.update(dt, state.energy);
+          g.draw(cx, cy, isLight);
+        });
+
+        // Draw an outer glowing ring surrounding the gears
+        ctx.beginPath();
+        ctx.arc(cx, cy, 180 + state.audioBass * 15, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsla(${state.hue1}, 60%, 55%, 0.04)`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
     }
   ];
 
@@ -687,6 +991,8 @@
     let bgAlpha = isLight ? 0.12 : 0.1;
     if (modeIndex === 2) bgAlpha = isLight ? 0.08 : 0.07; // cyber stream trail
     else if (modeIndex === 3) bgAlpha = isLight ? 0.1 : 0.08;  // aurora trail
+    else if (modeIndex === 5) bgAlpha = isLight ? 0.08 : 0.06; // singularity gas trail
+    else if (modeIndex === 6) bgAlpha = isLight ? 0.22 : 0.18; // clockwork sharp render
     
     ctx.fillStyle = isLight ? `rgba(241, 245, 249, ${bgAlpha})` : `rgba(8, 8, 12, ${bgAlpha})`;
     ctx.fillRect(0, 0, width, height);
@@ -694,6 +1000,25 @@
     // Draw active mode
     const activeMode = MODES[modeIndex] || MODES[0];
     activeMode.draw(dt, isLight);
+
+    // Update and draw event particles
+    for (let i = eventParticles.length - 1; i >= 0; i--) {
+      const ep = eventParticles[i];
+      ep.update(dt);
+      if (ep.life <= 0) {
+        eventParticles.splice(i, 1);
+      } else {
+        ep.draw();
+      }
+    }
+
+    // Screen flash overlay
+    if (flashIntensity > 0) {
+      ctx.fillStyle = `rgba(${flashColor}, ${flashIntensity})`;
+      ctx.fillRect(0, 0, width, height);
+      flashIntensity -= 0.02 * dt;
+      if (flashIntensity < 0) flashIntensity = 0;
+    }
 
     requestAnimationFrame(animate);
   }
@@ -797,6 +1122,7 @@
       state.currentModeIndex = (state.currentModeIndex + 1) % MODES.length;
       this.saveModePreference();
       this.applyModeColorShift();
+      startAutoRotate();
       return MODES[state.currentModeIndex].name;
     },
 
@@ -804,6 +1130,7 @@
       state.currentModeIndex = (state.currentModeIndex - 1 + MODES.length) % MODES.length;
       this.saveModePreference();
       this.applyModeColorShift();
+      startAutoRotate();
       return MODES[state.currentModeIndex].name;
     },
 
@@ -813,6 +1140,7 @@
           state.currentModeIndex = indexOrName;
           this.saveModePreference();
           this.applyModeColorShift();
+          startAutoRotate();
         }
       } else if (typeof indexOrName === 'string') {
         const idx = MODES.findIndex(m => m.name.toLowerCase() === indexOrName.toLowerCase());
@@ -820,6 +1148,7 @@
           state.currentModeIndex = idx;
           this.saveModePreference();
           this.applyModeColorShift();
+          startAutoRotate();
         }
       }
       return MODES[state.currentModeIndex].name;
@@ -853,8 +1182,61 @@
       else if (modeIdx === 2) this.setHue(170); // cyber stream - green/cyan
       else if (modeIdx === 3) this.setHue(290); // aurora waves - purple/teal
       else if (modeIdx === 4) this.setHue(205); // electrical storm - deep blue/white
+      else if (modeIdx === 5) this.setHue(22);  // Gargantua Singularity - gold/orange
+      else if (modeIdx === 6) this.setHue(195); // Kinetic Clockwork - ocean/sky blue
+    },
+
+    triggerEvent(type, x, y) {
+      const cx = x !== undefined ? x : width / 2;
+      const cy = y !== undefined ? y : height / 2;
+
+      if (type === 'agent-created') {
+        flashIntensity = 0.22;
+        flashColor = '168, 85, 247'; // purple
+        const color = 'hsla(270, 85%, 65%, opacity)';
+        for (let i = 0; i < 40; i++) {
+          eventParticles.push(new EventParticle(cx, cy, color));
+        }
+      } else if (type === 'task-complete') {
+        flashIntensity = 0.16;
+        flashColor = '34, 197, 94'; // green
+        const color = 'hsla(140, 85%, 55%, opacity)';
+        for (let i = 0; i < 35; i++) {
+          eventParticles.push(new EventParticle(cx, cy, color));
+        }
+      } else if (type === 'error') {
+        flashIntensity = 0.26;
+        flashColor = '239, 68, 68'; // red
+        const color = 'hsla(15, 85%, 60%, opacity)';
+        for (let i = 0; i < 45; i++) {
+          eventParticles.push(new EventParticle(cx, cy, color));
+        }
+      } else if (type === 'terminate') {
+        flashIntensity = 0.08;
+        flashColor = '100, 116, 139'; // slate/gray
+        const color = 'hsla(210, 40%, 50%, opacity)';
+        for (let i = 0; i < 25; i++) {
+          eventParticles.push(new EventParticle(cx, cy, color));
+        }
+      }
+    },
+
+    enableAutoRotation(enable) {
+      autoRotateEnabled = !!enable;
+      if (autoRotateEnabled) {
+        startAutoRotate();
+      } else {
+        stopAutoRotate();
+      }
+    },
+
+    isAutoRotationEnabled() {
+      return autoRotateEnabled;
     }
   };
+
+  // Start auto-rotation
+  startAutoRotate();
 
   console.log('[Background] Multi-mode reactive background engine loaded');
 })();
