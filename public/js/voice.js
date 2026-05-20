@@ -502,10 +502,35 @@
     stopListening,
     handleCommand,
     playWakeBeep,
+    duckAudio,
+    restoreAudio,
     suspendWakeWord: (suspend) => {
       state.wakeSuspended = suspend;
-      if (suspend) stopWakeWordListening();
-      else updateWakeWordState();
+      if (suspend) {
+        if (state.wakeRecognition && state.isWakeListening) {
+          return new Promise((resolve) => {
+            let resolved = false;
+            state.resolveWakeStop = () => {
+              if (!resolved) {
+                resolved = true;
+                resolve();
+              }
+            };
+            stopWakeWordListening();
+            // Safety fallback timeout
+            setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                resolve();
+              }
+            }, 400);
+          });
+        }
+        return Promise.resolve();
+      } else {
+        updateWakeWordState();
+        return Promise.resolve();
+      }
     }
   };
 
@@ -604,6 +629,10 @@
 
       state.wakeRecognition.onend = () => {
         state.isWakeListening = false;
+        if (state.resolveWakeStop) {
+          state.resolveWakeStop();
+          state.resolveWakeStop = null;
+        }
         // Auto-restart if still enabled and we aren't in another active state
         if (generalPrefs.wakeWordEnabled && !state.isListening && !state.isProcessing && !state.micDenied && !state.wakeSuspended) {
           setTimeout(startWakeWordListening, 300);
@@ -634,7 +663,6 @@
       try {
         state.wakeRecognition.stop();
       } catch (_) { }
-      state.isWakeListening = false;
     }
   }
 

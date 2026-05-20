@@ -138,52 +138,66 @@
       return;
     }
 
-    // Suspend background wake word to avoid conflicts and play start sound
-    if (window.VoiceCommands) {
-      window.VoiceCommands.suspendWakeWord(true);
-      window.VoiceCommands.playWakeBeep();
-    }
-
-    missionRecognition = new SpeechRecognition();
-    missionRecognition.lang = 'en-US';
-    missionRecognition.interimResults = true;
-    
-    missionRecognition.onstart = () => {
-      btnDictateMission.classList.add('recording');
-      inputMission.placeholder = "Listening...";
-    };
-    
-    let finalTranscript = inputMission.value ? inputMission.value + " " : "";
-    
-    missionRecognition.onresult = (event) => {
-      let interimTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interimTranscript += event.results[i][0].transcript;
+    const startDictation = () => {
+      missionRecognition = new SpeechRecognition();
+      missionRecognition.lang = 'en-US';
+      missionRecognition.interimResults = true;
+      
+      missionRecognition.onstart = () => {
+        btnDictateMission.classList.add('recording');
+        inputMission.placeholder = "Listening...";
+      };
+      
+      let finalTranscript = inputMission.value ? inputMission.value + " " : "";
+      
+      missionRecognition.onresult = (event) => {
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
         }
+        inputMission.value = finalTranscript + interimTranscript;
+      };
+      
+      missionRecognition.onerror = (e) => {
+        console.warn('[Dictation] Error:', e.error);
+        btnDictateMission.classList.remove('recording');
+        inputMission.placeholder = "Describe the agent's objective...";
+        if (window.VoiceCommands) {
+          window.VoiceCommands.suspendWakeWord(false);
+          window.VoiceCommands.restoreAudio();
+        }
+      };
+      
+      missionRecognition.onend = () => {
+        btnDictateMission.classList.remove('recording');
+        inputMission.placeholder = "Describe the agent's objective...";
+        if (window.VoiceCommands) {
+          window.VoiceCommands.suspendWakeWord(false);
+          window.VoiceCommands.restoreAudio();
+        }
+      };
+      
+      try {
+        missionRecognition.start();
+      } catch (err) {
+        console.error('[Dictation] Start failed:', err);
       }
-      inputMission.value = finalTranscript + interimTranscript;
     };
-    
-    missionRecognition.onerror = (e) => {
-      console.warn('[Dictation] Error:', e.error);
-      btnDictateMission.classList.remove('recording');
-      inputMission.placeholder = "Describe the agent's objective...";
-      if (window.VoiceCommands) window.VoiceCommands.suspendWakeWord(false);
-    };
-    
-    missionRecognition.onend = () => {
-      btnDictateMission.classList.remove('recording');
-      inputMission.placeholder = "Describe the agent's objective...";
-      if (window.VoiceCommands) window.VoiceCommands.suspendWakeWord(false);
-    };
-    
-    // Start recognition after a tiny delay so the beep doesn't trigger audio ducking/conflicts
-    setTimeout(() => {
-      missionRecognition.start();
-    }, 150);
+
+    // Duck music and suspend background wake word before starting dictation
+    if (window.VoiceCommands) {
+      window.VoiceCommands.duckAudio();
+      window.VoiceCommands.playWakeBeep();
+      window.VoiceCommands.suspendWakeWord(true).then(() => {
+        setTimeout(startDictation, 150);
+      });
+    } else {
+      setTimeout(startDictation, 150);
+    }
   });
 
   // Detail
@@ -276,7 +290,10 @@
     card.querySelector('.card-close').addEventListener('click', (e) => {
       e.stopPropagation();
       socket.emit('agent-terminate', { id: agent.id });
-      if (window.bgEffect) window.bgEffect.pulse();
+      if (window.bgEffect) {
+        window.bgEffect.pulse();
+        window.bgEffect.triggerEvent('terminate', e.clientX, e.clientY);
+      }
     });
 
     // Click to expand
@@ -325,7 +342,10 @@
     card.querySelector('.card-close').addEventListener('click', (e) => {
       e.stopPropagation();
       socket.emit('agent-terminate', { id: agent.id });
-      if (window.bgEffect) window.bgEffect.pulse();
+      if (window.bgEffect) {
+        window.bgEffect.pulse();
+        window.bgEffect.triggerEvent('terminate', e.clientX, e.clientY);
+      }
     });
   }
 
@@ -481,6 +501,12 @@
     state.currentModalAgentId = agent.id;
     updateStats();
     appendGlobalLog(`Agent created: ${getAgentTitle(agent.mission)}`, agent.id, 'info');
+    // Shift background to violet/pink on agent creation
+    if (window.bgEffect) {
+      window.bgEffect.setHue(260);
+      window.bgEffect.pulse();
+      window.bgEffect.triggerEvent('agent-created');
+    }
   });
 
   socket.on('agent-updated', (agent) => {
@@ -506,10 +532,20 @@
       renderDetail(agent);
     }
 
-    // Visual feedback
-    if (agent.status === 'complete' && window.bgEffect) {
-      window.bgEffect.setHue(140);
-      setTimeout(() => window.bgEffect.setHue(220), 3000);
+    // Visual feedback — shift background based on agent state
+    if (window.bgEffect) {
+      if (agent.status === 'complete') {
+        window.bgEffect.setHue(140); // emerald success
+        window.bgEffect.pulse();
+        window.bgEffect.triggerEvent('task-complete');
+        setTimeout(() => window.bgEffect.setHue(220), 4000);
+      } else if (agent.status === 'error') {
+        window.bgEffect.setHue(15); // warm ember warning
+        window.bgEffect.triggerEvent('error');
+        setTimeout(() => window.bgEffect.setHue(220), 3000);
+      } else if (agent.status === 'executing') {
+        window.bgEffect.setHue(200); // ocean blue
+      }
     }
   });
 
@@ -539,8 +575,10 @@
     let logType = 'info';
     if (data.log.toLowerCase().includes('error') || data.log.toLowerCase().includes('fail')) {
       logType = 'danger';
+      if (window.bgEffect) window.bgEffect.triggerEvent('error');
     } else if (data.log.toLowerCase().includes('success') || data.log.toLowerCase().includes('completed')) {
       logType = 'success';
+      if (window.bgEffect) window.bgEffect.triggerEvent('task-complete');
     } else if (data.log.toLowerCase().includes('warning')) {
       logType = 'warning';
     }
@@ -626,11 +664,15 @@
     closeDetail();
     if (window.vibePlayer) window.vibePlayer.playClick();
   });
-  $('#detail-terminate-btn').addEventListener('click', () => {
+  $('#detail-terminate-btn').addEventListener('click', (e) => {
     if (state.currentDetailAgentId) {
       socket.emit('agent-terminate', { id: state.currentDetailAgentId });
       closeDetail();
       if (window.vibePlayer) window.vibePlayer.playClick();
+      if (window.bgEffect) {
+        window.bgEffect.pulse();
+        window.bgEffect.triggerEvent('terminate', e.clientX, e.clientY);
+      }
     }
   });
 
@@ -691,6 +733,8 @@
         viewLogs.classList.remove('active');
         viewVisualizer.classList.add('hidden');
         viewVisualizer.classList.remove('active');
+        // Shift to default blue palette
+        if (window.bgEffect) window.bgEffect.setHue(220);
       } else if (btn.id === 'nav-logs') {
         viewDashboard.classList.add('hidden');
         viewDashboard.classList.remove('active');
@@ -703,6 +747,8 @@
         if (globalLogsContent) {
           globalLogsContent.scrollTop = globalLogsContent.scrollHeight;
         }
+        // Shift to teal/cyan palette for logs
+        if (window.bgEffect) window.bgEffect.setHue(190);
       } else if (btn.id === 'nav-visualizer') {
         viewDashboard.classList.add('hidden');
         viewDashboard.classList.remove('active');
@@ -713,9 +759,47 @@
         
         // Trigger resize to fix canvas layout issues
         window.dispatchEvent(new Event('resize'));
+        // Let the current background mode set its hue
+        if (window.bgEffect) window.bgEffect.applyModeColorShift();
       }
     });
   });
+
+  // ── Visualizer Mode Controls ──
+  const vizPrev = $('#viz-prev');
+  const vizNext = $('#viz-next');
+  const vizModeLabel = $('#viz-mode-label');
+
+  if (vizPrev && vizNext && vizModeLabel) {
+    const updateLabel = (modeName) => {
+      vizModeLabel.textContent = modeName;
+      vizModeLabel.classList.add('flash');
+      setTimeout(() => {
+        vizModeLabel.classList.remove('flash');
+      }, 600);
+    };
+
+    vizPrev.addEventListener('click', () => {
+      if (window.bgEffect) {
+        const mode = window.bgEffect.prevMode();
+        updateLabel(mode);
+        window.bgEffect.pulse();
+      }
+    });
+
+    vizNext.addEventListener('click', () => {
+      if (window.bgEffect) {
+        const mode = window.bgEffect.nextMode();
+        updateLabel(mode);
+        window.bgEffect.pulse();
+      }
+    });
+
+    // Initialize mode label on load
+    if (window.bgEffect) {
+      vizModeLabel.textContent = window.bgEffect.getCurrentModeName();
+    }
+  }
 
   // ── Utility ──
   function escapeHtml(str) {
