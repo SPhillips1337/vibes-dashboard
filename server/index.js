@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { Server } = require('socket.io');
 const { VibesBridge } = require('./vibes-bridge');
+const { spawn } = require('child_process');
 
 const app = express();
 const certDir = path.join(__dirname, '..', 'certs');
@@ -39,6 +40,7 @@ const USE_VIBES = process.env.USE_VIBES === 'true' || (hasVibes && process.env.U
 
 // Serve static files from public/
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use('/modules', express.static(path.join(__dirname, '..', 'modules')));
 app.use(express.json());
 
 // In-memory agent registry
@@ -220,6 +222,53 @@ app.post('/api/settings', (req, res) => {
   }
 });
 
+// REST API — discover and load dashboard modules dynamically
+app.get('/api/modules', (req, res) => {
+  const modulesDir = path.join(__dirname, '..', 'modules');
+  try {
+    if (!fs.existsSync(modulesDir)) {
+      return res.json([]);
+    }
+    const dirs = fs.readdirSync(modulesDir);
+    const modules = [];
+
+    dirs.forEach(dir => {
+      const dirPath = path.join(modulesDir, dir);
+      const manifestPath = path.join(dirPath, 'manifest.json');
+      
+      if (fs.statSync(dirPath).isDirectory() && fs.existsSync(manifestPath)) {
+        try {
+          const manifestContent = fs.readFileSync(manifestPath, 'utf8');
+          const manifest = JSON.parse(manifestContent);
+          
+          if (manifest.css) {
+            manifest.css = `/modules/${dir}/${manifest.css}`;
+          }
+          if (manifest.js) {
+            manifest.js = `/modules/${dir}/${manifest.js}`;
+          }
+          if (manifest.html) {
+            const htmlPath = path.join(dirPath, manifest.html);
+            if (fs.existsSync(htmlPath)) {
+              manifest.htmlContent = fs.readFileSync(htmlPath, 'utf8');
+            }
+            manifest.html = `/modules/${dir}/${manifest.html}`;
+          }
+          
+          modules.push(manifest);
+        } catch (e) {
+          console.error(`[Modules] Failed to parse manifest for module ${dir}:`, e.message);
+        }
+      }
+    });
+    
+    res.json(modules);
+  } catch (err) {
+    console.error('[Modules] Error loading modules:', err);
+    res.status(500).json({ error: 'Failed to load modules' });
+  }
+});
+
 // WebSocket events
 io.on('connection', (socket) => {
   console.log(`[Dashboard] Client connected: ${socket.id}`);
@@ -384,8 +433,80 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ── Terminal Exec Socket Listeners ──
+  socket.activeTerminalProcess = null;
+
+  socket.on('terminal-run', ({ command, cwd }) => {
+    const args = command.trim().split(/\s+/);
+    if (args[0] === 'cd') {
+      let targetDir = args[1] || '';
+      if (!targetDir) {
+        targetDir = process.env.HOME || '/';
+      } else {
+        if (targetDir.startsWith('~')) {
+          targetDir = targetDir.replace('~', process.env.HOME || '/');
+        }
+        targetDir = path.resolve(cwd, targetDir);
+      }
+
+      if (fs.existsSync(targetDir) && fs.statSync(targetDir).isDirectory()) {
+        socket.emit('terminal-output', { type: 'cwd-update', cwd: targetDir });
+        socket.emit('terminal-output', { type: 'exit', code: 0 });
+      } else {
+        socket.emit('terminal-output', { type: 'stderr', data: `cd: no such file or directory: ${args[1] || ''}\n` });
+        socket.emit('terminal-output', { type: 'exit', code: 1 });
+      }
+      return;
+    }
+
+    try {
+      const child = spawn(command, [], {
+        shell: true,
+        cwd: cwd || process.cwd(),
+        env: { ...process.env, FORCE_COLOR: '1' }
+      });
+
+      socket.activeTerminalProcess = child;
+
+      child.stdout.on('data', (data) => {
+        socket.emit('terminal-output', { type: 'stdout', data: data.toString() });
+      });
+
+      child.stderr.on('data', (data) => {
+        socket.emit('terminal-output', { type: 'stderr', data: data.toString() });
+      });
+
+      child.on('close', (code) => {
+        socket.activeTerminalProcess = null;
+        socket.emit('terminal-output', { type: 'exit', code: code });
+      });
+
+      child.on('error', (err) => {
+        socket.activeTerminalProcess = null;
+        socket.emit('terminal-output', { type: 'stderr', data: `System Error: ${err.message}\n` });
+        socket.emit('terminal-output', { type: 'exit', code: 1 });
+      });
+
+    } catch (err) {
+      socket.activeTerminalProcess = null;
+      socket.emit('terminal-output', { type: 'stderr', data: `Failed to spawn process: ${err.message}\n` });
+      socket.emit('terminal-output', { type: 'exit', code: 1 });
+    }
+  });
+
+  socket.on('terminal-kill', () => {
+    if (socket.activeTerminalProcess) {
+      socket.activeTerminalProcess.kill();
+      socket.activeTerminalProcess = null;
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`[Dashboard] Client disconnected: ${socket.id}`);
+    if (socket.activeTerminalProcess) {
+      socket.activeTerminalProcess.kill();
+      socket.activeTerminalProcess = null;
+    }
   });
 });
 

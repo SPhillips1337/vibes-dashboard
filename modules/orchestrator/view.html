@@ -1,0 +1,116 @@
+<div id="dashboard-grid">
+  <!-- Add New Agent Placeholder -->
+  <div class="agent-card add-card" id="add-agent-card">
+    <div class="add-card-inner">
+      <div class="add-icon">+</div>
+      <span class="add-label">Launch New Agent</span>
+    </div>
+  </div>
+  <!-- Agent cards will be injected here by JS -->
+</div>
+
+<!-- Creation Modal -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal-glass" id="creation-modal">
+
+    <!-- Step 1: Input -->
+    <div class="modal-step" id="modal-step-input">
+      <div class="modal-header">
+        <h2>Launch New Agent</h2>
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group" style="position: relative;">
+          <label for="input-cwd">Working Directory</label>
+          <input type="text" id="input-cwd" placeholder="/home/user/project" value="" autocomplete="off">
+          <ul id="cwd-suggestions" class="autocomplete-dropdown hidden"></ul>
+        </div>
+        <div class="form-group" style="position: relative;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label for="input-mission" style="margin-bottom: 0;">Mission</label>
+            <button id="btn-dictate-mission" class="btn-dictate" title="Dictate Mission" type="button" aria-label="Dictate Mission">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            </button>
+          </div>
+          <textarea id="input-mission" rows="4" placeholder="Describe the agent's objective..."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit">Generate Tasks</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Loading -->
+    <div class="modal-step hidden" id="modal-step-loading">
+      <div class="modal-header">
+        <h2>Planning Mission</h2>
+      </div>
+      <div class="modal-body modal-body-center">
+        <div class="spinner"></div>
+        <p class="loading-text">Vibes is analyzing your mission and generating tasks...</p>
+      </div>
+    </div>
+
+    <!-- Step 3: Review -->
+    <div class="modal-step hidden" id="modal-step-review">
+      <div class="modal-header">
+        <h2>Review Proposed Tasks</h2>
+        <button class="modal-close" id="modal-close-btn-review">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="review-mission" id="review-mission"></div>
+        <div class="review-tasks" id="review-tasks-list"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-decline">Decline</button>
+        <button class="btn btn-secondary" id="btn-regenerate">Regenerate Plan</button>
+        <button class="btn btn-primary" id="btn-accept">Accept & Launch</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Expanded Agent View (Full Page) -->
+<div id="agent-detail-overlay" class="detail-overlay hidden">
+  <div class="detail-panel">
+    <div class="detail-header">
+      <button class="detail-back" id="detail-back-btn" title="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+      <h2 class="detail-title" id="detail-title">Agent Details</h2>
+      <button class="btn btn-secondary btn-sm" id="detail-retry-btn" style="margin-right: 8px;">Retry Mission</button>
+      <button class="btn btn-danger btn-sm" id="detail-terminate-btn">Terminate</button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-info">
+        <div class="detail-stat">
+          <span class="detail-stat-label">Status</span>
+          <span class="detail-stat-value" id="detail-status">—</span>
+        </div>
+        <div class="detail-stat">
+          <span class="detail-stat-label">Progress</span>
+          <span class="detail-stat-value" id="detail-progress">0%</span>
+        </div>
+        <div class="detail-stat">
+          <span class="detail-stat-label">Working Directory</span>
+          <span class="detail-stat-value" id="detail-cwd">—</span>
+        </div>
+      </div>
+      <div class="detail-mission" id="detail-mission"></div>
+      <div class="detail-tasks" id="detail-tasks-list"></div>
+      <h3 class="detail-section-title">Live Logs</h3>
+      <div class="detail-logs" id="detail-logs">
+        <div class="log-empty">No logs yet...</div>
+      </div>
+    </div>
+  </div>
+</div>

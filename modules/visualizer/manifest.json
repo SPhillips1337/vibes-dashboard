@@ -1,0 +1,16 @@
+{
+  "id": "visualizer",
+  "name": "Visualizer",
+  "subtitle": "Immersive Agent Neural Mapping",
+  "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"1\" y=\"6\" width=\"4\" height=\"12\" rx=\"1\" /><rect x=\"7\" y=\"3\" width=\"4\" height=\"18\" rx=\"1\" /><rect x=\"13\" y=\"8\" width=\"4\" height=\"8\" rx=\"1\" /><rect x=\"19\" y=\"5\" width=\"4\" height=\"14\" rx=\"1\" /></svg>",
+  "html": "view.html",
+  "js": "script.js",
+  "speechCommands": [
+    {
+      "intent": "NAV_VISUALIZER",
+      "triggers": ["go to visualizer", "show visualizer", "open visualizer", "visualizer", "particles"],
+      "label": "Show Visualizer",
+      "icon": "✨"
+    }
+  ]
+}

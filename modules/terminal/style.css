@@ -1,0 +1,126 @@
+.terminal-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  margin: 10px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+
+.terminal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.terminal-title-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.terminal-dot.red { background: #ff5f56; }
+.terminal-dot.yellow { background: #ffbd2e; }
+.terminal-dot.green { background: #27c93f; }
+
+.terminal-header-title {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-left: 8px;
+}
+
+.terminal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.terminal-body {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  background: rgba(10, 12, 18, 0.6);
+  color: #c5cdd8;
+}
+
+.terminal-output {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.terminal-system-line {
+  color: #569cd6;
+  margin-bottom: 10px;
+}
+
+.terminal-command-echo {
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.terminal-stdout {
+  color: #a9b7c6;
+}
+
+.terminal-stderr {
+  color: #ff6b68;
+}
+
+.terminal-exit-code {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+  margin: 4px 0 12px 0;
+}
+
+.terminal-input-line-echo {
+  margin: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-input-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-prompt {
+  white-space: nowrap;
+}
+
+.terminal-user { color: #50fa7b; }
+.terminal-at { color: #f8f8f2; }
+.terminal-host { color: #8be9fd; }
+.terminal-colon { color: #f8f8f2; }
+.terminal-cwd { color: #ff79c6; }
+.terminal-char { color: #f8f8f2; }
+
+#terminal-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f8f8f2;
+  font-family: inherit;
+  font-size: inherit;
+  caret-color: #50fa7b;
+}
