@@ -29,13 +29,23 @@
     if (url.includes('/api/proxy?url=')) {
       return url;
     }
-    if (url.startsWith('/') || url.startsWith('http://localhost') || url.startsWith('https://localhost') || url.startsWith(window.location.origin)) {
+    if (url.startsWith('/') || url.startsWith(window.location.origin)) {
       return url;
     }
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return '/api/proxy?url=' + encodeURIComponent(url);
     }
     return url;
+  }
+
+  function updateIframeSandbox(url) {
+    if (!iframe) return;
+    const isSameOrigin = !url || url.startsWith('/') || url.startsWith(window.location.origin) || url.startsWith('./') || url.startsWith('../');
+    if (isSameOrigin && !url.includes('/api/proxy?url=')) {
+      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+    } else {
+      iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups');
+    }
   }
 
   function cleanUrlForDisplay(url) {
@@ -210,6 +220,7 @@
 
     // Load URL
     if (iframe) {
+      updateIframeSandbox(tab.url);
       iframe.src = getProxiedUrl(tab.url);
     }
     if (inputAddress) {
@@ -246,6 +257,7 @@
   function closeWindow() {
     // Reset iframe to start page
     if (iframe) {
+      updateIframeSandbox('/modules/web-browser/start.html');
       iframe.src = '/modules/web-browser/start.html';
     }
     if (inputAddress) {
@@ -268,6 +280,7 @@
   function openNewWindow() {
     // Reset to home portal and show the browser
     if (iframe) {
+      updateIframeSandbox('/modules/web-browser/start.html');
       iframe.src = '/modules/web-browser/start.html';
     }
     if (inputAddress) {
@@ -332,8 +345,10 @@
         let url = inputAddress.value.trim();
         if (url) {
           if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
-            url = 'https://' + url;
+            const isLocal = url.startsWith('localhost') || url.startsWith('127.0.0.1') || url.startsWith('[::1]') || url.includes('.local');
+            url = (isLocal ? 'http://' : 'https://') + url;
           }
+          updateIframeSandbox(url);
           iframe.src = getProxiedUrl(url);
           inputAddress.value = cleanUrlForDisplay(url);
 
@@ -350,6 +365,7 @@
       pill.addEventListener('click', () => {
         if (window.vibePlayer) window.vibePlayer.playClick();
         const url = pill.getAttribute('data-url');
+        updateIframeSandbox(url);
         iframe.src = getProxiedUrl(url);
         inputAddress.value = cleanUrlForDisplay(url);
 
@@ -389,6 +405,7 @@
                   // Only intercept http/https links
                   if (absoluteUrl.startsWith('http://') || absoluteUrl.startsWith('https://')) {
                     e.preventDefault();
+                    updateIframeSandbox(absoluteUrl);
                     iframe.src = getProxiedUrl(absoluteUrl);
                     inputAddress.value = cleanUrlForDisplay(absoluteUrl);
                   }
@@ -444,6 +461,7 @@
       if (window.Dashboard && window.Dashboard.activeModuleId !== 'web-browser') {
         window.Dashboard.showView('web-browser');
       }
+      updateIframeSandbox(url);
       if (iframe) iframe.src = getProxiedUrl(url);
       if (inputAddress) inputAddress.value = cleanUrlForDisplay(url);
       showBrowserWindow();
@@ -470,6 +488,31 @@
       // If hidden (was closed), show empty state.
       if (browserContainer && browserContainer.classList.contains('hidden')) {
         if (emptyState) emptyState.classList.remove('hidden');
+      }
+    }
+  });
+
+  // Global window message listener for sandboxed cross-origin iframe navigation events
+  window.addEventListener('message', (e) => {
+    if (!iframe || e.source !== iframe.contentWindow) return;
+    const data = e.data;
+    if (data && data.type === 'browser-load') {
+      const displayUrl = cleanUrlForDisplay(data.url);
+      if (inputAddress) {
+        inputAddress.value = displayUrl;
+      }
+      if (bookmarkPills) {
+        bookmarkPills.forEach(p => {
+          const purl = p.getAttribute('data-url');
+          p.classList.toggle('active', cleanUrlForDisplay(purl) === displayUrl);
+        });
+      }
+    } else if (data && data.type === 'browser-navigate') {
+      const targetUrl = data.url;
+      updateIframeSandbox(targetUrl);
+      iframe.src = getProxiedUrl(targetUrl);
+      if (inputAddress) {
+        inputAddress.value = cleanUrlForDisplay(targetUrl);
       }
     }
   });

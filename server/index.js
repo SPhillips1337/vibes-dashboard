@@ -269,6 +269,62 @@ app.get('/api/modules', (req, res) => {
   }
 });
 
+// Helper function to rewrite CSS url(...) declarations
+function rewriteCss(css, baseUrl, dashboardOrigin) {
+  return css.replace(/url\((['"]?)(.*?)\1\)/gi, (match, quote, val) => {
+    const cleanVal = val.trim();
+    if (!cleanVal || cleanVal.startsWith('data:') || cleanVal.startsWith('javascript:') || cleanVal.startsWith('#')) {
+      return match;
+    }
+    try {
+      const resolvedUrl = new URL(cleanVal, baseUrl).href;
+      if (resolvedUrl.startsWith(dashboardOrigin)) {
+        return match;
+      }
+      return `url(${quote}/api/proxy?url=${encodeURIComponent(resolvedUrl)}${quote})`;
+    } catch (e) {
+      return match;
+    }
+  });
+}
+
+// Helper function to rewrite HTML attributes (href, src, action) and styling
+function rewriteHtml(html, baseUrl, dashboardOrigin) {
+  // Rewrite href, src, action attributes
+  let rewritten = html.replace(/(href|src|action)\s*=\s*(['"])(.*?)\2/gi, (match, attr, quote, value) => {
+    const cleanValue = value.trim();
+    if (!cleanValue || cleanValue.startsWith('javascript:') || cleanValue.startsWith('mailto:') || cleanValue.startsWith('data:') || cleanValue.startsWith('#')) {
+      return match;
+    }
+    if (cleanValue.includes('/api/proxy?url=')) {
+      return match;
+    }
+    try {
+      const resolvedUrl = new URL(cleanValue, baseUrl).href;
+      if (resolvedUrl.startsWith(dashboardOrigin)) {
+        return match;
+      }
+      return `${attr}=${quote}/api/proxy?url=${encodeURIComponent(resolvedUrl)}${quote}`;
+    } catch (e) {
+      return match;
+    }
+  });
+
+  // Rewrite <style> blocks
+  rewritten = rewritten.replace(/<style([\s\S]*?)>([\s\S]*?)<\/style>/gi, (match, attrs, cssContent) => {
+    const rewrittenCss = rewriteCss(cssContent, baseUrl, dashboardOrigin);
+    return `<style${attrs}>${rewrittenCss}</style>`;
+  });
+
+  // Rewrite inline style attributes
+  rewritten = rewritten.replace(/style\s*=\s*(['"])(.*?)\1/gi, (match, quote, styleContent) => {
+    const rewrittenStyle = rewriteCss(styleContent, baseUrl, dashboardOrigin);
+    return `style=${quote}${rewrittenStyle}${quote}`;
+  });
+
+  return rewritten;
+}
+
 // REST API — proxy external web requests to bypass Content Security Policy (CSP) and X-Frame-Options framing restrictions
 app.get('/api/proxy', async (req, res) => {
   const targetUrl = req.query.url;
@@ -284,18 +340,41 @@ app.get('/api/proxy', async (req, res) => {
       return res.status(400).send('Invalid url');
     }
 
-    const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    let response;
+    try {
+      response = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+    } catch (err) {
+      const isLocalTarget = parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === '::1' || parsedUrl.hostname.endsWith('.local');
+      if (isLocalTarget && targetUrl.startsWith('https://')) {
+        const fallbackUrl = targetUrl.replace(/^https:\/\//i, 'http://');
+        console.log(`[Proxy] HTTPS fetch failed for local target ${targetUrl}. Falling back to HTTP: ${fallbackUrl}`);
+        try {
+          parsedUrl = new URL(fallbackUrl);
+          response = await fetch(fallbackUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+          });
+        } catch (fallbackErr) {
+          throw new Error(`HTTPS failed (${err.message}) and fallback HTTP failed: ${fallbackErr.message}`);
+        }
+      } else {
+        throw err;
       }
-    });
+    }
 
     const finalUrl = response.url || targetUrl;
     const finalParsedUrl = new URL(finalUrl);
 
     // Copy Content-Type header if present
-    const contentType = response.headers.get('content-type');
+    let contentType = response.headers.get('content-type');
     if (contentType) {
+      // Clean up Content-Type (handle multiple/comma-separated media types e.g. from CDNs)
+      contentType = contentType.split(',')[0].trim();
       res.setHeader('content-type', contentType);
     }
 
@@ -304,24 +383,57 @@ app.get('/api/proxy', async (req, res) => {
     res.removeHeader('content-security-policy-report-only');
     res.removeHeader('x-frame-options');
 
+    const dashboardOrigin = `${req.protocol}://${req.get('host')}`;
+
     if (contentType && contentType.includes('text/html')) {
       let html = await response.text();
-      // Inject <base href="..."> tag to resolve relative assets correctly using the final URL
-      const baseTag = `<base href="${finalParsedUrl.origin}${finalParsedUrl.pathname}">`;
-      if (html.includes('<head>')) {
-        html = html.replace('<head>', `<head>${baseTag}`);
-      } else if (html.includes('<HEAD>')) {
-        html = html.replace('<HEAD>', `<HEAD>${baseTag}`);
+      html = rewriteHtml(html, finalUrl, dashboardOrigin);
+
+      // Inject secure sandbox-to-parent communication script
+      const scriptToInject = `
+<!-- Sandbox communication script -->
+<script>
+  (function() {
+    if (window.parent && window.parent !== window) {
+      // Sync address bar on page load
+      window.parent.postMessage({ type: 'browser-load', url: window.location.href }, '*');
+      
+      // Intercept link clicks to navigate inside the parent frame
+      document.addEventListener('click', function(e) {
+        var anchor = e.target.closest('a');
+        if (anchor) {
+          var href = anchor.getAttribute('href');
+          if (href && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:') && !href.startsWith('tel:')) {
+            e.preventDefault();
+            window.parent.postMessage({ type: 'browser-navigate', url: anchor.href }, '*');
+          }
+        }
+      }, true);
+    }
+  })();
+</script>
+`;
+
+      if (html.includes('</body>')) {
+        html = html.replace('</body>', scriptToInject + '</body>');
+      } else if (html.includes('</BODY>')) {
+        html = html.replace('</BODY>', scriptToInject + '</BODY>');
       } else {
-        html = baseTag + html;
+        html = html + scriptToInject;
       }
+
       res.send(html);
+    } else if (contentType && (contentType.includes('text/css') || finalParsedUrl.pathname.endsWith('.css'))) {
+      let css = await response.text();
+      css = rewriteCss(css, finalUrl, dashboardOrigin);
+      res.send(css);
     } else {
       const buffer = await response.arrayBuffer();
       res.send(Buffer.from(buffer));
     }
   } catch (err) {
     console.error(`[Proxy] Error fetching ${targetUrl}:`, err.message);
+    res.removeHeader('content-type'); // Prevent Express crash if content-type was invalid
     res.status(500).send(`Proxy Error: ${err.message}`);
   }
 });
