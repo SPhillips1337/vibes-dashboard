@@ -32,10 +32,19 @@
     if (url.startsWith('/') || url.startsWith(window.location.origin)) {
       return url;
     }
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return '/api/proxy?url=' + encodeURIComponent(url);
+    // Normalize localhost to 127.0.0.1
+    let targetUrl = url;
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.hostname === 'localhost') {
+        urlObj.hostname = '127.0.0.1';
+        targetUrl = urlObj.href;
+      }
+    } catch (_) {}
+    if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+      return '/api/proxy?url=' + encodeURIComponent(targetUrl);
     }
-    return url;
+    return targetUrl;
   }
 
   function updateIframeSandbox(url) {

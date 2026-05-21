@@ -327,10 +327,19 @@ function rewriteHtml(html, baseUrl, dashboardOrigin) {
 
 // REST API — proxy external web requests to bypass Content Security Policy (CSP) and X-Frame-Options framing restrictions
 app.get('/api/proxy', async (req, res) => {
-  const targetUrl = req.query.url;
+  let targetUrl = req.query.url;
   if (!targetUrl) {
     return res.status(400).send('Missing url parameter');
   }
+
+  // Normalize localhost to 127.0.0.1 to avoid IPv6 resolution issues with Node fetch
+  try {
+    const urlObj = new URL(targetUrl);
+    if (urlObj.hostname === 'localhost') {
+      urlObj.hostname = '127.0.0.1';
+      targetUrl = urlObj.href;
+    }
+  } catch (e) {}
 
   try {
     let parsedUrl;
