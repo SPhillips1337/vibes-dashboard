@@ -1,0 +1,25 @@
+<div class="terminal-container glass">
+  <div class="terminal-header">
+    <div class="terminal-title-container">
+      <span class="terminal-dot red"></span>
+      <span class="terminal-dot yellow"></span>
+      <span class="terminal-dot green"></span>
+      <span class="terminal-header-title">Developer Terminal Session</span>
+    </div>
+    <div class="terminal-actions">
+      <button id="btn-terminal-clear" class="btn btn-ghost btn-sm" title="Clear Terminal Log">Clear</button>
+      <button id="btn-terminal-sigint" class="btn btn-danger btn-sm hidden" title="Send Interrupt (Ctrl+C)">Ctrl+C</button>
+    </div>
+  </div>
+  <div class="terminal-body" id="terminal-body-scroll">
+    <div class="terminal-output" id="terminal-output-area">
+      <div class="terminal-system-line">✦ System shell active. Type commands below to execute directly on the host.</div>
+    </div>
+    <div class="terminal-input-line">
+      <span class="terminal-prompt">
+        <span class="terminal-user">stephen</span><span class="terminal-at">@</span><span class="terminal-host">vibes-dashboard</span><span class="terminal-colon">:</span><span class="terminal-cwd" id="terminal-prompt-cwd">~/</span><span class="terminal-char">$</span>
+      </span>
+      <input type="text" id="terminal-input" autofocus autocomplete="off" spellcheck="false" aria-label="Terminal input prompt">
+    </div>
+  </div>
+</div>

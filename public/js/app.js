@@ -60,6 +60,8 @@
           window.bgEffect.applyModeColorShift();
         } else if (id === 'web-browser') {
           window.bgEffect.setHue(280); // Lavender/violet
+        } else if (id === 'terminal') {
+          window.bgEffect.setHue(145); // Emerald/Green terminal theme
         }
       }
 
