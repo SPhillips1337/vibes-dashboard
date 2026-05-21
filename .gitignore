@@ -48,3 +48,6 @@ VOICE-FEATURE-PLAN.md
 settings.json
 VFX-LINKS.md
 VFX-LINKS2.md
+
+# Project manifest (dev-only, may contain confidential context)
+project.json
