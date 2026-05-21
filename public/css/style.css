@@ -1803,6 +1803,109 @@ body.light-mode .viz-mode-label {
   opacity: 1;
 }
 
+/* ── Browser Dock — Global Tab Bar ── */
+.browser-dock {
+  position: fixed;
+  bottom: 0;
+  left: 72px; /* offset from sidebar */
+  right: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 0 24px 16px 24px;
+  pointer-events: none;
+}
+
+.browser-dock:empty {
+  display: none;
+}
+
+.dock-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 14px;
+  border-radius: 10px 10px 4px 4px;
+  background: rgba(15, 20, 35, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: dockTabIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  max-width: 220px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+}
+
+@keyframes dockTabIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.8); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.dock-tab:hover {
+  background: rgba(25, 35, 60, 0.85);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: var(--text-primary);
+  transform: translateY(-3px);
+  box-shadow: 0 -6px 24px rgba(59, 130, 246, 0.15), 0 -2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dock-tab-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.dock-tab-title {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.dock-tab-close {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  transition: var(--transition);
+  padding: 0;
+}
+
+.dock-tab-close:hover {
+  background: rgba(255, 95, 86, 0.25);
+  color: #ff5f56;
+}
+
+body.light-mode .dock-tab {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .dock-tab:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+body.light-mode .dock-tab-close:hover {
+  background: rgba(255, 95, 86, 0.15);
+}
+
 /* ── Toast Notification ── */
 .toast-container {
   position: fixed;

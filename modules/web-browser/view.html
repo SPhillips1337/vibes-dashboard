@@ -21,15 +21,39 @@
     </div>
     <div class="browser-address-container">
       <span class="browser-ssl-icon">🔒</span>
-      <input type="text" id="browser-address" placeholder="Enter URL (e.g. https://example.com) or select a bookmark..." value="/modules/web-browser/start.html">
+      <input type="text" id="browser-address" placeholder="Enter URL (e.g. https://example.com)..." value="/modules/web-browser/start.html">
     </div>
     <div class="browser-bookmarks">
       <button class="bookmark-pill active" data-url="/modules/web-browser/start.html">🏠 Home Portal</button>
-      <button class="bookmark-pill" data-url="https://example.com">📄 Example page</button>
-      <button class="bookmark-pill" data-url="https://html.spec.whatwg.org">📑 HTML Spec</button>
+    </div>
+    <div class="browser-window-controls">
+      <button id="browser-minimize" class="browser-wc-btn browser-wc-minimize" title="Minimize to dock">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="6" y1="12" x2="18" y2="12" />
+        </svg>
+      </button>
+      <button id="browser-close" class="browser-wc-btn browser-wc-close" title="Close window">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="6" y1="6" x2="18" y2="18" />
+          <line x1="18" y1="6" x2="6" y2="18" />
+        </svg>
+      </button>
     </div>
   </div>
   <div class="browser-viewport">
     <iframe id="browser-iframe" src="/modules/web-browser/start.html" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+  </div>
+</div>
+
+<!-- Empty state shown when browser window is closed -->
+<div class="browser-empty-state hidden" id="browser-empty-state">
+  <div class="browser-empty-content">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="browser-empty-icon">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+    <p class="browser-empty-title">No browser window open</p>
+    <p class="browser-empty-hint">Click the browser icon in the sidebar to open a new window, or restore a minimized tab from the dock below.</p>
   </div>
 </div>
