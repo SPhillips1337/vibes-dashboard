@@ -14,6 +14,7 @@
   let btnReload = null;
   let btnMinimize = null;
   let btnClose = null;
+  let btnNewWindow = null;
   let inputAddress = null;
   let iframe = null;
   let bookmarkPills = [];
@@ -36,6 +37,7 @@
     inputAddress = viewPanel.querySelector('#browser-address');
     iframe = viewPanel.querySelector('#browser-iframe');
     bookmarkPills = viewPanel.querySelectorAll('.bookmark-pill');
+    btnNewWindow = viewPanel.querySelector('#browser-new-window');
     dockContainer = document.getElementById('browser-dock');
     return true;
   }
@@ -234,6 +236,28 @@
     if (window.bgEffect) window.bgEffect.pulse();
   }
 
+  function openNewWindow() {
+    // Reset to home portal and show the browser
+    if (iframe) {
+      iframe.src = '/modules/web-browser/start.html';
+    }
+    if (inputAddress) {
+      inputAddress.value = '/modules/web-browser/start.html';
+    }
+
+    // Update bookmark pills
+    if (bookmarkPills) {
+      bookmarkPills.forEach(p => {
+        const purl = p.getAttribute('data-url');
+        p.classList.toggle('active', purl === '/modules/web-browser/start.html');
+      });
+    }
+
+    showBrowserWindow();
+
+    if (window.bgEffect) window.bgEffect.pulse();
+  }
+
   // ── Bind Events ──
   function bindEvents() {
     if (!initDOM()) return;
@@ -340,6 +364,14 @@
       if (window.vibePlayer) window.vibePlayer.playClick();
       closeWindow();
     });
+
+    // New Window button from empty state
+    if (btnNewWindow) {
+      btnNewWindow.addEventListener('click', () => {
+        if (window.vibePlayer) window.vibePlayer.playClick();
+        openNewWindow();
+      });
+    }
   }
 
   // ── Expose Global API ──

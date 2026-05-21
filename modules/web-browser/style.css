@@ -222,16 +222,47 @@
   max-width: 380px;
 }
 
-.browser-empty-icon {
-  width: 64px;
-  height: 64px;
-  color: rgba(255, 255, 255, 0.15);
+.browser-new-window-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   margin-bottom: 20px;
+  animation: newWindowPulse 2.5s ease-in-out infinite;
+}
+
+.browser-new-window-btn svg {
+  width: 32px;
+  height: 32px;
+}
+
+.browser-new-window-btn:hover {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.6);
+  transform: scale(1.12);
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.2), 0 0 60px rgba(59, 130, 246, 0.08);
+  animation: none;
+}
+
+.browser-new-window-btn:active {
+  transform: scale(0.95);
+}
+
+@keyframes newWindowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  50% { box-shadow: 0 0 20px 4px rgba(59, 130, 246, 0.12); }
 }
 
 .browser-empty-title {
   font-family: 'Outfit', sans-serif;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 8px;
@@ -242,7 +273,7 @@
   font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.6;
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 /* ── Light mode adjustments ── */
