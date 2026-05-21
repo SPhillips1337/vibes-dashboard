@@ -201,7 +201,7 @@
         // 2. Inject HTML View Panel
         if (module.htmlContent) {
           const panel = document.createElement('div');
-          panel.className = 'view-panel hidden';
+          panel.className = 'view-panel main-view hidden';
           panel.id = `view-${module.id}`;
           panel.innerHTML = module.htmlContent;
           viewContainer.appendChild(panel);
