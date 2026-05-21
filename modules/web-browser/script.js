@@ -24,6 +24,34 @@
   let tabIdCounter = 0;
   const dockedTabs = new Map();
 
+  function getProxiedUrl(url) {
+    if (!url) return '';
+    if (url.includes('/api/proxy?url=')) {
+      return url;
+    }
+    if (url.startsWith('/') || url.startsWith('http://localhost') || url.startsWith('https://localhost') || url.startsWith(window.location.origin)) {
+      return url;
+    }
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return '/api/proxy?url=' + encodeURIComponent(url);
+    }
+    return url;
+  }
+
+  function cleanUrlForDisplay(url) {
+    if (!url) return '';
+    if (url.includes('/api/proxy?url=')) {
+      try {
+        const u = new URL(url, window.location.origin);
+        return u.searchParams.get('url') || url;
+      } catch (e) {
+        const match = url.match(/[?&]url=([^&]+)/);
+        return match ? decodeURIComponent(match[1]) : url;
+      }
+    }
+    return url;
+  }
+
   function initDOM() {
     viewPanel = document.getElementById('view-web-browser');
     if (!viewPanel) return false;
@@ -45,20 +73,21 @@
   // ── Title Derivation ──
   function deriveTitle(url) {
     if (!url) return 'Untitled';
+    const displayUrl = cleanUrlForDisplay(url);
     try {
       // Local start page
-      if (url.includes('/modules/web-browser/start.html')) return 'Vibes Portal';
+      if (displayUrl.includes('/modules/web-browser/start.html')) return 'Vibes Portal';
 
       // Try to extract hostname from full URLs
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        const parsed = new URL(url);
+      if (displayUrl.startsWith('http://') || displayUrl.startsWith('https://')) {
+        const parsed = new URL(displayUrl);
         let host = parsed.hostname.replace(/^www\./, '');
         // Capitalize first letter
         return host.charAt(0).toUpperCase() + host.slice(1);
       }
 
       // Relative path — extract last segment
-      const segments = url.split('/').filter(Boolean);
+      const segments = displayUrl.split('/').filter(Boolean);
       if (segments.length > 0) {
         const last = segments[segments.length - 1];
         return last.replace(/\.[^.]+$/, ''); // strip extension
@@ -181,17 +210,17 @@
 
     // Load URL
     if (iframe) {
-      iframe.src = tab.url;
+      iframe.src = getProxiedUrl(tab.url);
     }
     if (inputAddress) {
-      inputAddress.value = tab.url;
+      inputAddress.value = cleanUrlForDisplay(tab.url);
     }
 
     // Update bookmark pill active state
     if (bookmarkPills) {
       bookmarkPills.forEach(p => {
         const purl = p.getAttribute('data-url');
-        p.classList.toggle('active', purl === tab.url);
+        p.classList.toggle('active', cleanUrlForDisplay(purl) === cleanUrlForDisplay(tab.url));
       });
     }
 
@@ -305,12 +334,12 @@
           if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
             url = 'https://' + url;
           }
-          iframe.src = url;
-          inputAddress.value = url;
+          iframe.src = getProxiedUrl(url);
+          inputAddress.value = cleanUrlForDisplay(url);
 
           bookmarkPills.forEach(p => {
             const purl = p.getAttribute('data-url');
-            p.classList.toggle('active', purl === url);
+            p.classList.toggle('active', cleanUrlForDisplay(purl) === cleanUrlForDisplay(url));
           });
         }
       }
@@ -321,8 +350,8 @@
       pill.addEventListener('click', () => {
         if (window.vibePlayer) window.vibePlayer.playClick();
         const url = pill.getAttribute('data-url');
-        iframe.src = url;
-        inputAddress.value = url;
+        iframe.src = getProxiedUrl(url);
+        inputAddress.value = cleanUrlForDisplay(url);
 
         bookmarkPills.forEach(p => p.classList.toggle('active', p === pill));
       });
@@ -335,17 +364,43 @@
           const loc = iframe.contentWindow.location;
           if (loc.href.startsWith(window.location.origin)) {
             const relativePath = loc.pathname + loc.search + loc.hash;
-            inputAddress.value = relativePath;
+            const displayUrl = cleanUrlForDisplay(relativePath);
+            inputAddress.value = displayUrl;
 
             bookmarkPills.forEach(p => {
               const purl = p.getAttribute('data-url');
-              p.classList.toggle('active', purl === relativePath);
+              p.classList.toggle('active', cleanUrlForDisplay(purl) === displayUrl || purl === relativePath);
             });
+
+            // Intercept link clicks inside same-origin iframe content to route them through proxy
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            if (doc) {
+              doc.addEventListener('click', (e) => {
+                const target = e.target.closest('a');
+                if (target) {
+                  const href = target.getAttribute('href');
+                  if (!href || href.startsWith('#') || href.startsWith('javascript:')) {
+                    return;
+                  }
+                  
+                  // Use absolute resolved href
+                  const absoluteUrl = target.href;
+                  
+                  // Only intercept http/https links
+                  if (absoluteUrl.startsWith('http://') || absoluteUrl.startsWith('https://')) {
+                    e.preventDefault();
+                    iframe.src = getProxiedUrl(absoluteUrl);
+                    inputAddress.value = cleanUrlForDisplay(absoluteUrl);
+                  }
+                }
+              }, true);
+            }
           } else {
-            inputAddress.value = loc.href;
+            const displayUrl = cleanUrlForDisplay(loc.href);
+            inputAddress.value = displayUrl;
             bookmarkPills.forEach(p => {
               const purl = p.getAttribute('data-url');
-              p.classList.toggle('active', purl === loc.href);
+              p.classList.toggle('active', cleanUrlForDisplay(purl) === displayUrl || purl === loc.href);
             });
           }
         }
@@ -380,7 +435,7 @@
     restore: function (url) {
       // Find the first docked tab matching the url, or restore generically
       for (const [tabId, tab] of dockedTabs) {
-        if (tab.url === url) {
+        if (cleanUrlForDisplay(tab.url) === cleanUrlForDisplay(url)) {
           restoreFromDock(tabId);
           return;
         }
@@ -389,13 +444,13 @@
       if (window.Dashboard && window.Dashboard.activeModuleId !== 'web-browser') {
         window.Dashboard.showView('web-browser');
       }
-      if (iframe) iframe.src = url;
-      if (inputAddress) inputAddress.value = url;
+      if (iframe) iframe.src = getProxiedUrl(url);
+      if (inputAddress) inputAddress.value = cleanUrlForDisplay(url);
       showBrowserWindow();
     },
     closeTab: function (url) {
       for (const [tabId, tab] of dockedTabs) {
-        if (tab.url === url) {
+        if (cleanUrlForDisplay(tab.url) === cleanUrlForDisplay(url)) {
           removeDockTab(tabId);
           return;
         }

@@ -269,6 +269,63 @@ app.get('/api/modules', (req, res) => {
   }
 });
 
+// REST API — proxy external web requests to bypass Content Security Policy (CSP) and X-Frame-Options framing restrictions
+app.get('/api/proxy', async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl) {
+    return res.status(400).send('Missing url parameter');
+  }
+
+  try {
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(targetUrl);
+    } catch (e) {
+      return res.status(400).send('Invalid url');
+    }
+
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    const finalUrl = response.url || targetUrl;
+    const finalParsedUrl = new URL(finalUrl);
+
+    // Copy Content-Type header if present
+    const contentType = response.headers.get('content-type');
+    if (contentType) {
+      res.setHeader('content-type', contentType);
+    }
+
+    // Strip framing-related headers from target response
+    res.removeHeader('content-security-policy');
+    res.removeHeader('content-security-policy-report-only');
+    res.removeHeader('x-frame-options');
+
+    if (contentType && contentType.includes('text/html')) {
+      let html = await response.text();
+      // Inject <base href="..."> tag to resolve relative assets correctly using the final URL
+      const baseTag = `<base href="${finalParsedUrl.origin}${finalParsedUrl.pathname}">`;
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', `<head>${baseTag}`);
+      } else if (html.includes('<HEAD>')) {
+        html = html.replace('<HEAD>', `<HEAD>${baseTag}`);
+      } else {
+        html = baseTag + html;
+      }
+      res.send(html);
+    } else {
+      const buffer = await response.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    }
+  } catch (err) {
+    console.error(`[Proxy] Error fetching ${targetUrl}:`, err.message);
+    res.status(500).send(`Proxy Error: ${err.message}`);
+  }
+});
+
 // WebSocket events
 io.on('connection', (socket) => {
   console.log(`[Dashboard] Client connected: ${socket.id}`);
