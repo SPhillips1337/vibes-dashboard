@@ -564,4 +564,41 @@
     });
   }
 
+  // ── Module Voice Commands ──
+  if (window.VoiceCommands && window.VoiceCommands.registerIntent) {
+    // 1. Launch Agent Command
+    window.VoiceCommands.registerIntent('LAUNCH_AGENT', [
+      'launch new agent', 'create new agent', 'new agent', 'spawn agent', 'launch agent',
+      'create agent', 'generate agent'
+    ], (params) => {
+      window.Dashboard.showView('orchestrator');
+      openModal();
+      if (params && params.mission) {
+        const missionInput = document.getElementById('input-mission');
+        if (missionInput) {
+          missionInput.value = params.mission;
+          missionInput.dispatchEvent(new Event('input'));
+        }
+      }
+      if (window.VoiceCommands.showToast) {
+        window.VoiceCommands.showToast('Launching new agent...', 'success');
+      }
+    }, { label: 'Launch New Agent', icon: '🚀' });
+
+    // 2. Terminate All Agents Command
+    window.VoiceCommands.registerIntent('TERMINATE_ALL', [
+      'terminate all agents', 'stop all agents', 'kill all agents',
+      'terminate everything', 'stop everything'
+    ], () => {
+      if (window.Dashboard && window.Dashboard.agents) {
+        window.Dashboard.agents.forEach(agent => {
+          socket.emit('agent-terminate', { id: agent.id });
+        });
+      }
+      if (window.VoiceCommands.showToast) {
+        window.VoiceCommands.showToast('All agents terminated', 'success');
+      }
+    }, { label: 'Terminate All Agents', icon: '🛑', destructive: true });
+  }
+
 })();
