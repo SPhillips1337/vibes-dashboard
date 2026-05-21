@@ -39,6 +39,7 @@ const USE_VIBES = process.env.USE_VIBES === 'true' || (hasVibes && process.env.U
 
 // Serve static files from public/
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use('/modules', express.static(path.join(__dirname, '..', 'modules')));
 app.use(express.json());
 
 // In-memory agent registry
@@ -217,6 +218,53 @@ app.post('/api/settings', (req, res) => {
   } catch (err) {
     console.error('[Settings] Error writing settings file:', err);
     res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+// REST API — discover and load dashboard modules dynamically
+app.get('/api/modules', (req, res) => {
+  const modulesDir = path.join(__dirname, '..', 'modules');
+  try {
+    if (!fs.existsSync(modulesDir)) {
+      return res.json([]);
+    }
+    const dirs = fs.readdirSync(modulesDir);
+    const modules = [];
+
+    dirs.forEach(dir => {
+      const dirPath = path.join(modulesDir, dir);
+      const manifestPath = path.join(dirPath, 'manifest.json');
+      
+      if (fs.statSync(dirPath).isDirectory() && fs.existsSync(manifestPath)) {
+        try {
+          const manifestContent = fs.readFileSync(manifestPath, 'utf8');
+          const manifest = JSON.parse(manifestContent);
+          
+          if (manifest.css) {
+            manifest.css = `/modules/${dir}/${manifest.css}`;
+          }
+          if (manifest.js) {
+            manifest.js = `/modules/${dir}/${manifest.js}`;
+          }
+          if (manifest.html) {
+            const htmlPath = path.join(dirPath, manifest.html);
+            if (fs.existsSync(htmlPath)) {
+              manifest.htmlContent = fs.readFileSync(htmlPath, 'utf8');
+            }
+            manifest.html = `/modules/${dir}/${manifest.html}`;
+          }
+          
+          modules.push(manifest);
+        } catch (e) {
+          console.error(`[Modules] Failed to parse manifest for module ${dir}:`, e.message);
+        }
+      }
+    });
+    
+    res.json(modules);
+  } catch (err) {
+    console.error('[Modules] Error loading modules:', err);
+    res.status(500).json({ error: 'Failed to load modules' });
   }
 });
 

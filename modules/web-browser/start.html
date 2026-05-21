@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vibes Start Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: rgba(255, 255, 255, 0.03);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --primary: #3b82f6;
+      --radius: 16px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    body.light-mode {
+      --bg: #f9fafb;
+      --surface: rgba(0, 0, 0, 0.02);
+      --border: rgba(0, 0, 0, 0.08);
+      --text: #111827;
+      --text-secondary: #4b5563;
+      --primary: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 40px 20px;
+      transition: background 0.3s;
+    }
+
+    .bg-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: radial-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px);
+      background-size: 24px 24px;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .portal-card {
+      max-width: 640px;
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      animation: fadeInUp 0.6s ease;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo-container {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: var(--primary);
+      margin-bottom: 24px;
+    }
+
+    .logo-container svg {
+      width: 32px;
+      height: 32px;
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+
+    p.subtitle {
+      color: var(--text-secondary);
+      font-size: 15px;
+      margin-bottom: 32px;
+    }
+
+    .search-form {
+      width: 100%;
+      margin-bottom: 36px;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px 6px 4px 16px;
+      transition: var(--transition);
+    }
+
+    .search-box:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+    }
+
+    .search-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 15px;
+      outline: none;
+      padding: 10px 0;
+    }
+
+    .search-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .search-btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    .quick-links {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      text-align: left;
+    }
+
+    .link-card {
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-decoration: none;
+      color: inherit;
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .link-card:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    .link-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .link-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+  </style>
+  <script>
+    function syncTheme() {
+      try {
+        const isParentLight = window.parent.document.body.classList.contains('light-mode');
+        document.body.classList.toggle('light-mode', isParentLight);
+      } catch (e) {
+        const savedTheme = localStorage.getItem('vibes-theme');
+        document.body.classList.toggle('light-mode', savedTheme === 'light');
+      }
+    }
+    window.addEventListener('load', syncTheme);
+    window.addEventListener('storage', syncTheme);
+
+    // Watch for class changes on parent document body (dynamic theme toggle)
+    try {
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.attributeName === 'class') {
+            syncTheme();
+          }
+        });
+      });
+      observer.observe(window.parent.document.body, { attributes: true });
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="portal-card">
+    <div class="logo-container">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="2" y1="12" x2="22" y2="12" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+      </svg>
+    </div>
+    <h1>Welcome to Vibes Portal</h1>
+    <p class="subtitle">Secure sandboxed web exploration workspace.</p>
+    
+    <form class="search-form" action="https://www.google.com/search" method="GET" target="_blank">
+      <div class="search-box">
+        <input type="text" class="search-input" name="q" placeholder="Search Google..." autocomplete="off">
+        <button type="submit" class="search-btn">Search</button>
+      </div>
+    </form>
+
+    <div class="quick-links">
+      <a href="https://example.com" class="link-card">
+        <div class="link-title">Example Page</div>
+        <div class="link-desc">Standard sandbox test page.</div>
+      </a>
+      <a href="https://html.spec.whatwg.org" class="link-card">
+        <div class="link-title">WHATWG HTML</div>
+        <div class="link-desc">Living Standard documentation.</div>
+      </a>
+      <a href="https://archive.org" class="link-card">
+        <div class="link-title">Internet Archive</div>
+        <div class="link-desc">Explore free digital library assets.</div>
+      </a>
+    </div>
+  </div>
+</body>
+</html>

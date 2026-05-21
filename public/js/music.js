@@ -33,10 +33,8 @@
   const playlistEl = document.getElementById('playlist');
   const visualizerCanvas = document.getElementById('player-visualizer');
   const miniCanvas = document.getElementById('mini-visualizer');
-  const mainCanvas = document.getElementById('main-visualizer');
   const vCtx = visualizerCanvas.getContext('2d');
   const mCtx = miniCanvas ? miniCanvas.getContext('2d') : null;
-  const mainCtx = mainCanvas ? mainCanvas.getContext('2d') : null;
 
   // Sound Effects (Disabled due to external 403 errors)
   const sounds = {
@@ -106,6 +104,7 @@
     visualizerCanvas.width = rect.width;
     visualizerCanvas.height = rect.height;
 
+    const mainCanvas = document.getElementById('main-visualizer');
     if (mainCanvas && mainCanvas.parentElement) {
       const mainRect = mainCanvas.parentElement.getBoundingClientRect();
       mainCanvas.width = mainRect.width || window.innerWidth;
@@ -289,6 +288,8 @@
       }
 
       // Main Visualizer (Circular Glow)
+      const mainCanvas = document.getElementById('main-visualizer');
+      const mainCtx = mainCanvas ? mainCanvas.getContext('2d') : null;
       if (mainCtx && mainCanvas.offsetParent !== null) {
         mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
         

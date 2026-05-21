@@ -1,0 +1,35 @@
+<div class="browser-container glass">
+  <div class="browser-control-bar">
+    <div class="browser-nav-buttons">
+      <button id="browser-back" class="btn btn-ghost btn-icon" title="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="19" y1="12" x2="5" y2="12" />
+          <polyline points="12 19 5 12 12 5" />
+        </svg>
+      </button>
+      <button id="browser-forward" class="btn btn-ghost btn-icon" title="Forward">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
+      </button>
+      <button id="browser-reload" class="btn btn-ghost btn-icon" title="Reload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+        </svg>
+      </button>
+    </div>
+    <div class="browser-address-container">
+      <span class="browser-ssl-icon">🔒</span>
+      <input type="text" id="browser-address" placeholder="Enter URL (e.g. https://example.com) or select a bookmark..." value="/modules/web-browser/start.html">
+    </div>
+    <div class="browser-bookmarks">
+      <button class="bookmark-pill active" data-url="/modules/web-browser/start.html">🏠 Home Portal</button>
+      <button class="bookmark-pill" data-url="https://example.com">📄 Example page</button>
+      <button class="bookmark-pill" data-url="https://html.spec.whatwg.org">📑 HTML Spec</button>
+    </div>
+  </div>
+  <div class="browser-viewport">
+    <iframe id="browser-iframe" src="/modules/web-browser/start.html" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+  </div>
+</div>

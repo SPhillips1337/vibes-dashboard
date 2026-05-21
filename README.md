@@ -2,6 +2,8 @@
 
 Premium glassmorphic dashboard for orchestrating autonomous Vibes subagents. Features real-time agent monitoring, reactive particle backgrounds, an integrated music player with audio frequency visualizer, and voice command control.
 
+Developed and extensively tested on **Ubuntu Linux** with **Google Chrome** — the built-in `SpeechRecognition` system works best in Chrome.
+
 ### 🚀 Quick Install (Linux)
 
 The easiest way to install Vibes and set up the global `vibes` command is using our automated installer:

@@ -1,0 +1,167 @@
+/* ═══════════════════════════════════════
+   Vibes Dashboard — Web Browser Styles
+   ═══════════════════════════════════════ */
+
+.browser-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 150px);
+  margin: 28px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: browserEnter 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes browserEnter {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.browser-control-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.browser-nav-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.browser-nav-buttons .btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.browser-nav-buttons .btn-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.browser-nav-buttons .btn-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.browser-address-container {
+  flex: 1;
+  min-width: 250px;
+  display: flex;
+  align-items: center;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 14px;
+  gap: 10px;
+  transition: border-color 0.2s;
+}
+
+.browser-address-container:focus-within {
+  border-color: var(--primary);
+}
+
+.browser-ssl-icon {
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+#browser-address {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.browser-bookmarks {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.bookmark-pill {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bookmark-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.bookmark-pill.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: var(--primary);
+}
+
+.browser-viewport {
+  flex: 1;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+
+#browser-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+/* Light mode adjustments */
+body.light-mode .browser-container {
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+body.light-mode .browser-control-bar {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+body.light-mode .browser-nav-buttons .btn-icon {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+body.light-mode .bookmark-pill {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+body.light-mode .bookmark-pill.active {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.2);
+}

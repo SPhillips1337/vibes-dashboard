@@ -298,8 +298,25 @@
   // ── Command Parser ──
   const intents = [];
 
-  function registerIntent(name, triggers, action, destructive = false) {
-    intents.push({ name, triggers: triggers.map(t => t.toLowerCase()), action, destructive });
+  function registerIntent(name, triggers, action, options = {}) {
+    let destructive = false;
+    let label = '';
+    let icon = '🎤';
+    if (typeof options === 'boolean') {
+      destructive = options;
+    } else if (options && typeof options === 'object') {
+      destructive = !!options.destructive;
+      label = options.label || '';
+      icon = options.icon || '🎤';
+    }
+    intents.push({
+      name,
+      triggers: triggers.map(t => t.toLowerCase()),
+      action,
+      destructive,
+      label,
+      icon
+    });
   }
 
   function classify(transcript) {
@@ -388,48 +405,7 @@
     const pick = responses[Math.floor(Math.random() * responses.length)];
     showToast(pick, 'success');
     speak(pick);
-  });
-
-  registerIntent('LAUNCH_AGENT', [
-    'launch new agent', 'create agent', 'new mission', 'launch agent',
-    'create a new agent', 'start a new agent', 'add agent',
-    'launch agent to', 'create agent to',
-  ], (params) => {
-    // Open the creation modal and pre-fill mission if available
-    const addCard = document.getElementById('add-agent-card');
-    if (addCard) addCard.click();
-    if (params.mission) {
-      const missionInput = document.getElementById('input-mission');
-      if (missionInput) {
-        missionInput.value = params.mission;
-        // Trigger input event for any listeners
-        missionInput.dispatchEvent(new Event('input'));
-      }
-    }
-    showToast('Launching new agent...', 'success');
-  });
-
-  registerIntent('NAV_DASHBOARD', [
-    'go to dashboard', 'show dashboard', 'dashboard', 'home', 'go home',
-  ], () => {
-    document.getElementById('nav-dashboard')?.click();
-    showToast('Dashboard', 'success');
-  });
-
-  registerIntent('NAV_LOGS', [
-    'show logs', 'view activity', 'open logs', 'view logs', 'go to logs',
-  ], () => {
-    document.getElementById('nav-logs')?.click();
-    showToast('Opening logs', 'success');
-  });
-
-  registerIntent('NAV_VISUALIZER', [
-    'show visualizer', 'open visualizer', 'view visualizer', 'visualizer',
-    'show visualiser', 'open visualiser',
-  ], () => {
-    document.getElementById('nav-visualizer')?.click();
-    showToast('Opening visualizer', 'success');
-  });
+  }, { label: 'Greeting', icon: '👋' });
 
   registerIntent('MUSIC_PLAY', [
     'play music', 'start music', 'music play', 'music start', 'play', 'start playing',
@@ -437,7 +413,7 @@
     const playBtn = document.getElementById('btn-play-pause');
     if (playBtn) playBtn.click();
     showToast('Playing music', 'success');
-  });
+  }, { label: 'Play Music', icon: '▶️' });
 
   registerIntent('MUSIC_PAUSE', [
     'stop music', 'pause music', 'music stop', 'music pause', 'stop', 'pause',
@@ -445,52 +421,42 @@
     const playBtn = document.getElementById('btn-play-pause');
     if (playBtn) playBtn.click();
     showToast('Music paused', 'success');
-  });
+  }, { label: 'Pause Music', icon: '⏸' });
 
   registerIntent('MUSIC_NEXT', [
     'next track', 'skip song', 'next song', 'skip track', 'next',
   ], () => {
     document.getElementById('btn-next')?.click();
     showToast('Next track', 'success');
-  });
+  }, { label: 'Next Track', icon: '⏭' });
 
   registerIntent('MUSIC_PREV', [
     'previous track', 'previous song', 'go back', 'prev',
   ], () => {
     document.getElementById('btn-prev')?.click();
     showToast('Previous track', 'success');
-  });
+  }, { label: 'Previous Track', icon: '⏮' });
 
   registerIntent('NAV_SETTINGS', [
     'open settings', 'show settings', 'settings', 'go to settings',
   ], () => {
     document.getElementById('nav-settings')?.click();
     showToast('Opening settings', 'success');
-  });
+  }, { label: 'Open Settings', icon: '⚙️' });
 
   registerIntent('TOGGLE_THEME', [
     'toggle theme', 'light mode', 'dark mode', 'switch theme',
   ], () => {
     document.getElementById('theme-toggle')?.click();
     showToast('Theme toggled', 'success');
-  });
+  }, { label: 'Toggle Theme', icon: '🎨' });
 
   registerIntent('CANCEL', [
     'cancel', 'stop listening', 'go away', 'nevermind', 'never mind', 'abort',
   ], () => {
     showToast('Cancelled', 'info');
     // Does nothing else, just acknowledges and exits
-  });
-
-  // Destructive commands
-  registerIntent('TERMINATE_ALL', [
-    'terminate all agents', 'stop all agents', 'kill all agents',
-    'terminate everything', 'stop everything',
-  ], () => {
-    // Terminate all agents by clicking each close button
-    document.querySelectorAll('.agent-card .card-close').forEach(btn => btn.click());
-    showToast('All agents terminated', 'success');
-  }, true);  // destructive
+  }, { label: 'Cancel', icon: '🚫' });
 
   // ── Plugin Support (for Phase 3 system discovery) ──
   window.VoiceCommands = {
@@ -552,35 +518,28 @@
 
   function openHelpModal() {
     if (!helpList) return;
-    // Build the command list from registered intents
-    const intentMap = {
-      LAUNCH_AGENT: { label: 'Launch New Agent', icon: '🚀' },
-      NAV_DASHBOARD: { label: 'Go to Dashboard', icon: '🏠' },
-      NAV_LOGS: { label: 'View Activity Logs', icon: '📋' },
-      NAV_VISUALIZER: { label: 'Open Visualizer', icon: '📊' },
-      MUSIC_PLAY: { label: 'Play Music', icon: '▶️' },
-      MUSIC_PAUSE: { label: 'Pause Music', icon: '⏸' },
-      MUSIC_NEXT: { label: 'Next Track', icon: '⏭' },
-      MUSIC_PREV: { label: 'Previous Track', icon: '⏮' },
-      NAV_SETTINGS: { label: 'Open Settings', icon: '⚙️' },
-      TOGGLE_THEME: { label: 'Toggle Theme', icon: '🎨' },
-      CANCEL: { label: 'Cancel', icon: '🚫' },
-      TERMINATE_ALL: { label: 'Terminate All Agents', icon: '🛑' },
-      HELLO: { label: 'Greeting', icon: '👋' },
-    };
-
     helpList.innerHTML = '';
+    
+    // De-duplicate commands by label and icon to keep the modal neat
+    const seen = new Set();
+
     intents.forEach(intent => {
-      const info = intentMap[intent.name] || { label: intent.name, icon: '🎤' };
+      const label = intent.label || intent.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      const icon = intent.icon || '🎤';
+      
+      const key = `${label}-${icon}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
       const triggers = intent.triggers.slice(0, 3).join(', ');
       const more = intent.triggers.length > 3 ? ` +${intent.triggers.length - 3} more` : '';
       const item = document.createElement('div');
       item.className = 'help-command-item';
       item.innerHTML = `
-        <div class="help-cmd-icon" style="background:${intent.destructive ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.12)'}">${info.icon}</div>
+        <div class="help-cmd-icon" style="background:${intent.destructive ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.12)'}">${icon}</div>
         <div class="help-cmd-text">
-          ${info.label}
-          <span class="help-cmd-triggers">"${triggers}"${more}</span>
+          ${escapeHtml(label)}
+          <span class="help-cmd-triggers">"${escapeHtml(triggers)}"${escapeHtml(more)}</span>
         </div>
       `;
       helpList.appendChild(item);
