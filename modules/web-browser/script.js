@@ -504,6 +504,7 @@
   // Global window message listener for sandboxed cross-origin iframe navigation events
   window.addEventListener('message', (e) => {
     if (!iframe || e.source !== iframe.contentWindow) return;
+    if (e.origin !== window.location.origin) return;
     const data = e.data;
     if (data && data.type === 'browser-load') {
       const displayUrl = cleanUrlForDisplay(data.url);

@@ -405,7 +405,7 @@ app.get('/api/proxy', async (req, res) => {
   (function() {
     if (window.parent && window.parent !== window) {
       // Sync address bar on page load
-      window.parent.postMessage({ type: 'browser-load', url: window.location.href }, '*');
+      window.parent.postMessage({ type: 'browser-load', url: window.location.href }, window.location.origin);
       
       // Intercept link clicks to navigate inside the parent frame
       document.addEventListener('click', function(e) {
@@ -414,7 +414,7 @@ app.get('/api/proxy', async (req, res) => {
           var href = anchor.getAttribute('href');
           if (href && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:') && !href.startsWith('tel:')) {
             e.preventDefault();
-            window.parent.postMessage({ type: 'browser-navigate', url: anchor.href }, '*');
+            window.parent.postMessage({ type: 'browser-navigate', url: anchor.href }, window.location.origin);
           }
         }
       }, true);
