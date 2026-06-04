@@ -90,7 +90,7 @@
         const res = await fetch(`/api/fs/suggestions?path=${encodeURIComponent(val)}`);
         const suggestions = await res.json();
         if (suggestions.length > 0) {
-          cwdSuggestions.innerHTML = '';
+          cwdSuggestions.replaceChildren();
           suggestions.forEach(s => {
             const li = document.createElement('li');
             li.textContent = s;
@@ -196,7 +196,7 @@
     const card = document.createElement('div');
     card.className = 'agent-card';
     card.dataset.agentId = agent.id;
-    card.innerHTML = renderCardInner(agent);
+    renderCardInner(card, agent);
 
     // Close button
     card.querySelector('.card-close').addEventListener('click', (e) => {
@@ -214,11 +214,11 @@
     return card;
   }
 
-  function renderCardInner(agent) {
+  function renderCardInner(card, agent) {
     const statusClass = `status-${agent.status}`;
     const statusLabel = agent.status.charAt(0).toUpperCase() + agent.status.slice(1);
 
-    return `
+    const html = `
       <div class="card-header">
         <div class="card-mission">${escapeHtml(getAgentTitle(agent.mission))}</div>
         <button class="card-close" title="Terminate Agent">&times;</button>
@@ -240,13 +240,24 @@
         </div>
       </div>
     `;
+
+    card.replaceChildren();
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      while (doc.body.firstChild) {
+        card.appendChild(doc.body.firstChild);
+      }
+    } catch (err) {
+      console.error('[Orchestrator] Failed to parse card inner HTML:', err);
+    }
   }
 
   function updateCardElement(agent) {
     const card = grid.querySelector(`[data-agent-id="${agent.id}"]`);
     if (!card) return;
 
-    card.innerHTML = renderCardInner(agent);
+    renderCardInner(card, agent);
 
     // Re-bind close
     card.querySelector('.card-close').addEventListener('click', (e) => {
@@ -342,7 +353,7 @@
       retryBtn.classList.toggle('hidden', !canRetry);
     }
 
-    detailTasksList.innerHTML = '';
+    detailTasksList.replaceChildren();
     (agent.tasks || []).forEach(task => {
       const el = document.createElement('div');
       el.className = `detail-task task-${task.status}`;
@@ -350,17 +361,37 @@
         : task.status === 'in-progress' ? '⟳'
         : task.status === 'failed' ? '✗'
         : '○';
-      el.innerHTML = `
-        <span class="task-icon">${icon}</span>
-        <span class="task-name-text" style="flex: 1;">${escapeHtml(task.name)}</span>
-        <button class="task-retry-btn" title="Restart from here" data-task-id="${task.id}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-          </svg>
-        </button>
-      `;
 
-      el.querySelector('.task-retry-btn').addEventListener('click', (e) => {
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'task-icon';
+      iconSpan.textContent = icon;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'task-name-text';
+      nameSpan.style.flex = '1';
+      nameSpan.textContent = task.name;
+
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'task-retry-btn';
+      retryBtn.title = 'Restart from here';
+      retryBtn.dataset.taskId = task.id;
+
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(
+          `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" /></svg>`,
+          'image/svg+xml'
+        );
+        retryBtn.appendChild(doc.documentElement);
+      } catch (err) {
+        console.error('[Orchestrator] Failed to parse retry icon:', err);
+      }
+
+      el.appendChild(iconSpan);
+      el.appendChild(nameSpan);
+      el.appendChild(retryBtn);
+
+      retryBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         socket.emit('agent-retry-task', { id: agent.id, taskId: task.id });
         if (window.vibePlayer) window.vibePlayer.playClick();
@@ -374,10 +405,14 @@
 
   function renderLogs(logs) {
     if (!logs.length) {
-      detailLogs.innerHTML = '<div class="log-empty">No logs yet...</div>';
+      detailLogs.replaceChildren();
+      const emptyDiv = document.createElement('div');
+      emptyDiv.className = 'log-empty';
+      emptyDiv.textContent = 'No logs yet...';
+      detailLogs.appendChild(emptyDiv);
       return;
     }
-    detailLogs.innerHTML = '';
+    detailLogs.replaceChildren();
     logs.forEach(entry => appendLogLine(entry.message, entry.time));
   }
 
@@ -388,7 +423,16 @@
     const line = document.createElement('div');
     line.className = 'log-line';
     const t = time ? new Date(time).toLocaleTimeString('en-GB') : new Date().toLocaleTimeString('en-GB');
-    line.innerHTML = `<span class="log-time">${t}</span>${escapeHtml(message)}`;
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'log-time';
+    timeSpan.textContent = t;
+
+    const messageText = document.createTextNode(message);
+
+    line.appendChild(timeSpan);
+    line.appendChild(messageText);
+
     detailLogs.appendChild(line);
     detailLogs.scrollTop = detailLogs.scrollHeight;
   }
@@ -418,11 +462,21 @@
     if (currentModalAgentId === agent.id && agent.status === 'review') {
       showStep('review');
       reviewMission.textContent = agent.mission;
-      reviewTasksList.innerHTML = '';
+      reviewTasksList.replaceChildren();
       agent.tasks.forEach((t, i) => {
         const el = document.createElement('div');
         el.className = 'review-task';
-        el.innerHTML = `<span class="review-task-num">${i + 1}</span><span>${escapeHtml(t.name)}</span>`;
+        
+        const numSpan = document.createElement('span');
+        numSpan.className = 'review-task-num';
+        numSpan.textContent = i + 1;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = t.name;
+
+        el.appendChild(numSpan);
+        el.appendChild(nameSpan);
+        
         reviewTasksList.appendChild(el);
       });
     }
@@ -529,9 +583,13 @@
 
   // ── Helper Utilities ──
   function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function getAgentTitle(mission) {
@@ -799,7 +857,7 @@
 
               if (models.length) {
                 const cur = ollamaModelSel.value;
-                ollamaModelSel.innerHTML = '';
+                ollamaModelSel.replaceChildren();
                 models.forEach(m => {
                   const opt = document.createElement('option');
                   opt.value = m;

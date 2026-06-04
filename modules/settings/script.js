@@ -122,7 +122,16 @@
     panel.className = 'settings-panel hidden';
     panel.id = `tab-panel-${tab.id}`;
     panel.setAttribute('role', 'tabpanel');
-    panel.innerHTML = tab.htmlContent;
+    
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(tab.htmlContent, 'text/html');
+      while (doc.body.firstChild) {
+        panel.appendChild(doc.body.firstChild);
+      }
+    } catch (err) {
+      console.error(`[Settings] Failed to parse HTML content for tab ${tab.id}:`, err);
+    }
 
     container.appendChild(panel);
 
@@ -393,8 +402,11 @@
         // Populate Custom English dropdown profiles
         const select = panel.querySelector('#setting-voice');
         const populate = () => {
-          const voices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
-          select.innerHTML = '<option value="">Default (System Voice)</option>';
+          select.replaceChildren();
+          const optDefault = document.createElement('option');
+          optDefault.value = '';
+          optDefault.textContent = 'Default (System Voice)';
+          select.appendChild(optDefault);
           voices.forEach(v => {
             const opt = document.createElement('option');
             opt.value = v.name;
@@ -555,7 +567,16 @@
               const editBtn = document.createElement('button');
               editBtn.className = 'btn-icon';
               editBtn.title = 'Edit user';
-              editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>`;
+              try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(
+                  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>`,
+                  'image/svg+xml'
+                );
+                editBtn.appendChild(doc.documentElement);
+              } catch (err) {
+                console.error('[Settings] Failed to parse Edit icon:', err);
+              }
               editBtn.addEventListener('click', () => {
                 formTitle.textContent = `Modify Operator: ${u.username}`;
                 formId.value = u.id;
@@ -583,7 +604,16 @@
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'btn-icon delete';
                 deleteBtn.title = 'Delete user';
-                deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>`;
+                try {
+                  const parser = new DOMParser();
+                  const doc = parser.parseFromString(
+                    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>`,
+                    'image/svg+xml'
+                  );
+                  deleteBtn.appendChild(doc.documentElement);
+                } catch (err) {
+                  console.error('[Settings] Failed to parse Delete icon:', err);
+                }
                 deleteBtn.addEventListener('click', async () => {
                   if (confirm(`Are you sure you want to permanently delete operator "${u.name}"?`)) {
                     try {

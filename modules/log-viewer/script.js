@@ -43,10 +43,30 @@
     return firstSentence;
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+  function createLogLine(time, origin, message, type) {
+    const line = document.createElement('div');
+    line.className = 'global-log-line';
+    
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'log-time';
+    timeSpan.style.opacity = '0.5';
+    timeSpan.style.width = '60px';
+    timeSpan.style.flexShrink = '0';
+    timeSpan.textContent = time;
+
+    const originSpan = document.createElement('span');
+    originSpan.className = `log-origin badge-${type}`;
+    originSpan.textContent = origin;
+
+    const messageSpan = document.createElement('span');
+    messageSpan.className = 'log-message';
+    messageSpan.style.flex = '1';
+    messageSpan.textContent = message;
+
+    line.appendChild(timeSpan);
+    line.appendChild(originSpan);
+    line.appendChild(messageSpan);
+    return line;
   }
 
   function appendGlobalLog(message, origin = 'system', type = 'info') {
@@ -59,15 +79,7 @@
     if (!logsContent && !initDOM()) return;
 
     if (logsContent) {
-      const line = document.createElement('div');
-      line.className = 'global-log-line';
-      
-      const badgeClass = `badge-${type}`;
-      line.innerHTML = `
-        <span class="log-time" style="opacity: 0.5; width: 60px; flex-shrink: 0;">${time}</span>
-        <span class="log-origin ${badgeClass}">${escapeHtml(origin)}</span>
-        <span class="log-message" style="flex: 1;">${escapeHtml(message)}</span>
-      `;
+      const line = createLogLine(time, origin, message, type);
       logsContent.appendChild(line);
       
       // Auto-scroll if close to bottom
@@ -111,16 +123,9 @@
       if (!logsContent) initDOM();
       if (logsContent) {
         // Redraw cached logs on show to make sure it's up to date and correct
-        logsContent.innerHTML = '';
+        logsContent.replaceChildren();
         globalLogs.forEach(entry => {
-          const line = document.createElement('div');
-          line.className = 'global-log-line';
-          const badgeClass = `badge-${entry.type}`;
-          line.innerHTML = `
-            <span class="log-time" style="opacity: 0.5; width: 60px; flex-shrink: 0;">${entry.time}</span>
-            <span class="log-origin ${badgeClass}">${escapeHtml(entry.origin)}</span>
-            <span class="log-message" style="flex: 1;">${escapeHtml(entry.message)}</span>
-          `;
+          const line = createLogLine(entry.time, entry.origin, entry.message, entry.type);
           logsContent.appendChild(line);
         });
         logsContent.scrollTop = logsContent.scrollHeight;
@@ -134,7 +139,7 @@
     if (btnClear) {
       btnClear.addEventListener('click', () => {
         globalLogs.length = 0;
-        if (logsContent) logsContent.innerHTML = '';
+        if (logsContent) logsContent.replaceChildren();
         appendGlobalLog('System logs cleared.', 'system', 'info');
       });
     }
@@ -146,7 +151,7 @@
       if (initDOM() && btnClear) {
         btnClear.addEventListener('click', () => {
           globalLogs.length = 0;
-          if (logsContent) logsContent.innerHTML = '';
+          if (logsContent) logsContent.replaceChildren();
           appendGlobalLog('System logs cleared.', 'system', 'info');
         });
       }

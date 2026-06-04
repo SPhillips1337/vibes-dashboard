@@ -89,7 +89,11 @@
     if (!select) return;
     const synth = window.speechSynthesis;
     const voices = synth.getVoices().filter(v => v.lang.startsWith('en'));
-    select.innerHTML = '<option value="">Default (System Voice)</option>';
+    select.replaceChildren();
+    const optDefault = document.createElement('option');
+    optDefault.value = '';
+    optDefault.textContent = 'Default (System Voice)';
+    select.appendChild(optDefault);
     voices.forEach(v => {
       const opt = document.createElement('option');
       opt.value = v.name;
@@ -269,7 +273,7 @@
         const modelSelect = document.getElementById('setting-ollama-model');
         if (modelSelect) {
           const current = modelSelect.value;
-          modelSelect.innerHTML = '';
+          modelSelect.replaceChildren();
           models.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m;

@@ -63,7 +63,18 @@
     const icons = { success: '✅', error: '❌', info: 'ℹ️' };
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span><span class="toast-text">${escapeHtml(message)}</span>`;
+    
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'toast-icon';
+    iconSpan.textContent = icons[type] || 'ℹ️';
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'toast-text';
+    textSpan.textContent = message;
+
+    toast.appendChild(iconSpan);
+    toast.appendChild(textSpan);
+    
     toastContainer.appendChild(toast);
     setTimeout(() => {
       toast.classList.add('toast-out');
@@ -500,13 +511,6 @@
     }
   };
 
-  // Small helper for escapeHtml
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
   console.log('[Voice] Voice control loaded with', intents.length, 'commands');
 
   // ── Voice Help Modal ──
@@ -518,7 +522,7 @@
 
   function openHelpModal() {
     if (!helpList) return;
-    helpList.innerHTML = '';
+    helpList.replaceChildren();
     
     // De-duplicate commands by label and icon to keep the modal neat
     const seen = new Set();
@@ -535,13 +539,38 @@
       const more = intent.triggers.length > 3 ? ` +${intent.triggers.length - 3} more` : '';
       const item = document.createElement('div');
       item.className = 'help-command-item';
-      item.innerHTML = `
-        <div class="help-cmd-icon" style="background:${intent.destructive ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.12)'}">${icon}</div>
-        <div class="help-cmd-text">
-          ${escapeHtml(label)}
-          <span class="help-cmd-triggers">"${escapeHtml(triggers)}"${escapeHtml(more)}</span>
-        </div>
-      `;
+      
+      const iconDiv = document.createElement('div');
+      iconDiv.className = 'help-cmd-icon';
+      iconDiv.style.background = intent.destructive ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.12)';
+      
+      if (icon.trim().startsWith('<')) {
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(icon, 'image/svg+xml');
+          iconDiv.appendChild(doc.documentElement);
+        } catch (err) {
+          iconDiv.textContent = icon;
+        }
+      } else {
+        iconDiv.textContent = icon;
+      }
+
+      const textDiv = document.createElement('div');
+      textDiv.className = 'help-cmd-text';
+      
+      const labelText = document.createTextNode(label + ' ');
+      
+      const triggersSpan = document.createElement('span');
+      triggersSpan.className = 'help-cmd-triggers';
+      triggersSpan.textContent = `"${triggers}"${more}`;
+
+      textDiv.appendChild(labelText);
+      textDiv.appendChild(triggersSpan);
+
+      item.appendChild(iconDiv);
+      item.appendChild(textDiv);
+      
       helpList.appendChild(item);
     });
 

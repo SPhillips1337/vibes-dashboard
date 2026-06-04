@@ -113,17 +113,32 @@
   }
 
   function renderPlaylist() {
-    playlistEl.innerHTML = '';
+    playlistEl.replaceChildren();
     PLAYLIST.forEach((track, i) => {
       const item = document.createElement('div');
       item.className = `playlist-item ${i === state.currentIndex ? 'active' : ''}`;
-      item.innerHTML = `
-        <div class="item-index">${(i + 1).toString().padStart(2, '0')}</div>
-        <div class="item-info">
-          <div class="item-name">${track.name}</div>
-          <div class="item-artist">${track.artist}</div>
-        </div>
-      `;
+      
+      const indexDiv = document.createElement('div');
+      indexDiv.className = 'item-index';
+      indexDiv.textContent = (i + 1).toString().padStart(2, '0');
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'item-info';
+
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'item-name';
+      nameDiv.textContent = track.name;
+
+      const artistDiv = document.createElement('div');
+      artistDiv.className = 'item-artist';
+      artistDiv.textContent = track.artist;
+
+      infoDiv.appendChild(nameDiv);
+      infoDiv.appendChild(artistDiv);
+
+      item.appendChild(indexDiv);
+      item.appendChild(infoDiv);
+
       item.addEventListener('click', () => loadTrack(i, true));
       playlistEl.appendChild(item);
     });

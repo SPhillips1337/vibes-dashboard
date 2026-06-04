@@ -226,7 +226,17 @@
           const panel = document.createElement('div');
           panel.className = 'view-panel main-view hidden';
           panel.id = `view-${module.id}`;
-          panel.innerHTML = module.htmlContent;
+          
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(module.htmlContent, 'text/html');
+            while (doc.body.firstChild) {
+              panel.appendChild(doc.body.firstChild);
+            }
+          } catch (err) {
+            console.error(`[Dashboard] Failed to parse HTML content for module ${module.id}:`, err);
+          }
+          
           viewContainer.appendChild(panel);
         }
 
