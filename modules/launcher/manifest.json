@@ -1,0 +1,8 @@
+{
+  "id": "launcher",
+  "name": "Launcher",
+  "hidden": true,
+  "css": "style.css",
+  "html": "view.html",
+  "js": "script.js"
+}
