@@ -1,0 +1,69 @@
+.music-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.music-grid {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: 30px;
+  height: 100%;
+}
+
+.music-player-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.music-playlist-column {
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  backdrop-filter: blur(20px);
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.music-playlist-column .playlist-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+}
+
+.music-playlist-column h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+.music-playlist-column .playlist {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+/* Custom Scrollbar for Playlist */
+.music-playlist-column .playlist::-webkit-scrollbar {
+  width: 6px;
+}
+.music-playlist-column .playlist::-webkit-scrollbar-track {
+  background: transparent;
+}
+.music-playlist-column .playlist::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.music-playlist-column .playlist::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

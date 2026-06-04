@@ -1165,12 +1165,17 @@
     saveModePreference() {
       try {
         localStorage.setItem('vibes-visualizer-mode', state.currentModeIndex);
-        // Persist setting to server
-        fetch('/api/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 'vibes-visualizer-mode': state.currentModeIndex })
-        }).catch(err => console.warn('[Settings] Failed to save mode to server:', err));
+        // Persist setting to server if authenticated
+        if (window.Dashboard && window.Dashboard.csrfToken) {
+          fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': window.Dashboard.csrfToken
+            },
+            body: JSON.stringify({ 'vibes-visualizer-mode': state.currentModeIndex })
+          }).catch(err => console.warn('[Settings] Failed to save mode to server:', err));
+        }
       } catch (_) {}
     },
 

@@ -38,10 +38,44 @@ const hasVibes = fs.existsSync(serverScript);
 // Auto-enable real vibes mode if the Vibes repository exists and USE_VIBES is not explicitly disabled
 const USE_VIBES = process.env.USE_VIBES === 'true' || (hasVibes && process.env.USE_VIBES !== 'false');
 
+const auth = require('./auth');
+
+// Custom Cookie Parser Middleware
+app.use((req, res, next) => {
+  req.cookies = {};
+  const rawCookies = req.headers.cookie;
+  if (rawCookies) {
+    rawCookies.split(';').forEach(cookie => {
+      const parts = cookie.split('=');
+      if (parts.length >= 2) {
+        const name = parts[0].trim();
+        const value = parts.slice(1).join('=').trim();
+        req.cookies[name] = decodeURIComponent(value);
+      }
+    });
+  }
+  next();
+});
+
+app.use(express.json());
+
+// Prevent browser caching of index.html for security back-button protection
+app.get('/', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  next();
+});
+
 // Serve static files from public/
 app.use(express.static(path.join(__dirname, '..', 'public')));
-app.use('/modules', express.static(path.join(__dirname, '..', 'modules')));
-app.use(express.json());
+
+// Secure static modules directory
+app.use('/modules', (req, res, next) => {
+  const sessionId = req.cookies['__Host-session-id'];
+  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+    return next();
+  }
+  res.status(401).json({ error: 'Unauthorized' });
+}, express.static(path.join(__dirname, '..', 'modules')));
 
 // In-memory agent registry
 const agents = new Map();
@@ -98,6 +132,241 @@ vibesBridge.on('agent-exit', (data) => {
     io.emit('agent-updated', { id: data.id, ...agent });
   }
 });
+
+// =========================================================================
+// AUTHENTICATION & USER MANAGEMENT API
+// =========================================================================
+
+const crypto = require('crypto');
+
+// PUBLIC AUTH ENDPOINTS
+app.post('/api/auth/login', async (req, res) => {
+  const ip = req.ip;
+  if (auth.isRateLimited(ip)) {
+    return res.status(429).json({ error: 'Too many failed login attempts. Try again in 10 minutes.' });
+  }
+
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  const user = auth.users.find(u => u.username === username.toLowerCase());
+  if (!user) {
+    auth.recordLoginAttempt(ip, false);
+    return res.status(401).json({ error: 'Invalid username or password' });
+  }
+
+  const valid = await auth.verifyPassword(password, user.passwordHash);
+  if (!valid) {
+    auth.recordLoginAttempt(ip, false);
+    return res.status(401).json({ error: 'Invalid username or password' });
+  }
+
+  auth.recordLoginAttempt(ip, true);
+
+  const { sessionId, csrfToken } = auth.createSession(user.id, user.username, user.role);
+
+  res.cookie('__Host-session-id', sessionId, {
+    httpOnly: true,
+    secure: true, // Requires HTTPS (self-signed certs generated via generate_cert.sh)
+    sameSite: 'Strict',
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  });
+
+  res.json({
+    success: true,
+    user: {
+      username: user.username,
+      name: user.name,
+      role: user.role
+    }
+  });
+});
+
+app.get('/api/auth/status', (req, res) => {
+  const sessionId = req.cookies['__Host-session-id'];
+  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+    const session = auth.sessions[sessionId];
+    return res.json({
+      authenticated: true,
+      user: {
+        username: session.username,
+        role: session.role
+      }
+    });
+  }
+  res.json({ authenticated: false });
+});
+
+// ROUTE GUARD: Require authentication and CSRF token for all other /api/* endpoints
+app.use('/api', (req, res, next) => {
+  // Bypassing /api/proxy because it implements custom session/csrf validation to support sandboxed iframe requests
+  if (req.path === '/proxy') {
+    return next();
+  }
+
+  const sessionId = req.cookies['__Host-session-id'];
+  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+    req.session = auth.sessions[sessionId];
+
+    // CSRF Check for all state-changing HTTP requests
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+      return next();
+    }
+    const csrfToken = req.headers['x-csrf-token'];
+    if (csrfToken && req.session.csrfToken === csrfToken) {
+      return next();
+    }
+    return res.status(403).json({ error: 'Invalid or missing CSRF token' });
+  }
+  res.status(401).json({ error: 'Unauthorized' });
+});
+
+// SECURE AUTH ENDPOINTS (Protected)
+app.post('/api/auth/logout', (req, res) => {
+  const sessionId = req.cookies['__Host-session-id'];
+  auth.destroySession(sessionId);
+  res.clearCookie('__Host-session-id', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Strict',
+    path: '/'
+  });
+  res.json({ success: true });
+});
+
+app.get('/api/auth/csrf', (req, res) => {
+  res.json({ csrfToken: req.session.csrfToken });
+});
+
+// ROLE-BASED ACCESS CONTROL (RBAC) MIDDLEWARE
+const requireAdmin = (req, res, next) => {
+  if (req.session && req.session.role === 'admin') {
+    return next();
+  }
+  res.status(403).json({ error: 'Forbidden' });
+};
+
+// USER MANAGEMENT ENDPOINTS (Admin Only)
+app.get('/api/users', requireAdmin, (req, res) => {
+  const safeUsers = auth.users.map(u => ({
+    id: u.id,
+    username: u.username,
+    name: u.name,
+    role: u.role,
+    createdAt: u.createdAt
+  }));
+  res.json(safeUsers);
+});
+
+app.post('/api/users', requireAdmin, async (req, res) => {
+  const { username, password, name, role } = req.body;
+  if (!username || !password || !name || !role) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+  if (role !== 'admin' && role !== 'operator') {
+    return res.status(400).json({ error: 'Invalid role' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+  }
+  if (auth.users.some(u => u.username === username.toLowerCase())) {
+    return res.status(400).json({ error: 'Username already exists' });
+  }
+
+  const hashedPassword = await auth.hashPassword(password);
+  const newUser = {
+    id: 'u_' + crypto.randomBytes(8).toString('hex'),
+    username: username.toLowerCase(),
+    name,
+    role,
+    passwordHash: hashedPassword,
+    createdAt: new Date().toISOString()
+  };
+
+  auth.users.push(newUser);
+  auth.saveUsers();
+
+  res.json({
+    success: true,
+    user: {
+      id: newUser.id,
+      username: newUser.username,
+      name: newUser.name,
+      role: newUser.role,
+      createdAt: newUser.createdAt
+    }
+  });
+});
+
+app.put('/api/users/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { name, role, password } = req.body;
+
+  const user = auth.users.find(u => u.id === id);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  if (user.username === req.session.username && role && role !== 'admin') {
+    return res.status(400).json({ error: 'Cannot change your own administrator role' });
+  }
+
+  if (name) user.name = name;
+  if (role && (role === 'admin' || role === 'operator')) user.role = role;
+  if (password) {
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+    }
+    user.passwordHash = await auth.hashPassword(password);
+  }
+
+  auth.saveUsers();
+
+  res.json({
+    success: true,
+    user: {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      createdAt: user.createdAt
+    }
+  });
+});
+
+app.delete('/api/users/:id', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const userIndex = auth.users.findIndex(u => u.id === id);
+  if (userIndex === -1) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const user = auth.users[userIndex];
+  if (user.username === req.session.username) {
+    return res.status(400).json({ error: 'Cannot delete your own account' });
+  }
+  if (user.role === 'admin') {
+    const adminCount = auth.users.filter(u => u.role === 'admin').length;
+    if (adminCount <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the last administrator account' });
+    }
+  }
+
+  for (const [sid, session] of Object.entries(auth.sessions)) {
+    if (session.username === user.username) {
+      auth.destroySession(sid);
+    }
+  }
+
+  auth.users.splice(userIndex, 1);
+  auth.saveUsers();
+  res.json({ success: true });
+});
+
+// =========================================================================
 
 // REST API — list agents
 app.get('/api/agents', (req, res) => {
@@ -262,6 +531,19 @@ app.get('/api/modules', (req, res) => {
       }
     });
     
+    // Sort modules based on user preference if exists
+    const user = auth.users.find(u => u.username === req.session.username);
+    if (user && user.moduleOrder && Array.isArray(user.moduleOrder)) {
+      modules.sort((a, b) => {
+        const idxA = user.moduleOrder.indexOf(a.id);
+        const idxB = user.moduleOrder.indexOf(b.id);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return 0;
+      });
+    }
+
     res.json(modules);
   } catch (err) {
     console.error('[Modules] Error loading modules:', err);
@@ -269,8 +551,23 @@ app.get('/api/modules', (req, res) => {
   }
 });
 
+// REST API — save user sidebar modules order preference
+app.post('/api/users/module-order', (req, res) => {
+  const { moduleOrder } = req.body;
+  if (!moduleOrder || !Array.isArray(moduleOrder)) {
+    return res.status(400).json({ error: 'Invalid module order format' });
+  }
+
+  const success = auth.saveUserPreference(req.session.username, 'moduleOrder', moduleOrder);
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'User profile not found' });
+  }
+});
+
 // Helper function to rewrite CSS url(...) declarations
-function rewriteCss(css, baseUrl, dashboardOrigin) {
+function rewriteCss(css, baseUrl, dashboardOrigin, csrfToken) {
   return css.replace(/url\((['"]?)(.*?)\1\)/gi, (match, quote, val) => {
     const cleanVal = val.trim();
     if (!cleanVal || cleanVal.startsWith('data:') || cleanVal.startsWith('javascript:') || cleanVal.startsWith('#')) {
@@ -281,7 +578,11 @@ function rewriteCss(css, baseUrl, dashboardOrigin) {
       if (resolvedUrl.startsWith(dashboardOrigin)) {
         return match;
       }
-      return `url(${quote}/api/proxy?url=${encodeURIComponent(resolvedUrl)}${quote})`;
+      let proxyUrl = `/api/proxy?url=${encodeURIComponent(resolvedUrl)}`;
+      if (csrfToken) {
+        proxyUrl += `&csrf=${encodeURIComponent(csrfToken)}`;
+      }
+      return `url(${quote}${proxyUrl}${quote})`;
     } catch (e) {
       return match;
     }
@@ -289,7 +590,7 @@ function rewriteCss(css, baseUrl, dashboardOrigin) {
 }
 
 // Helper function to rewrite HTML attributes (href, src, action) and styling
-function rewriteHtml(html, baseUrl, dashboardOrigin) {
+function rewriteHtml(html, baseUrl, dashboardOrigin, csrfToken) {
   // Rewrite href, src, action attributes
   let rewritten = html.replace(/(href|src|action)\s*=\s*(['"])(.*?)\2/gi, (match, attr, quote, value) => {
     const cleanValue = value.trim();
@@ -304,7 +605,11 @@ function rewriteHtml(html, baseUrl, dashboardOrigin) {
       if (resolvedUrl.startsWith(dashboardOrigin)) {
         return match;
       }
-      return `${attr}=${quote}/api/proxy?url=${encodeURIComponent(resolvedUrl)}${quote}`;
+      let proxyUrl = `/api/proxy?url=${encodeURIComponent(resolvedUrl)}`;
+      if (csrfToken) {
+        proxyUrl += `&csrf=${encodeURIComponent(csrfToken)}`;
+      }
+      return `${attr}=${quote}${proxyUrl}${quote}`;
     } catch (e) {
       return match;
     }
@@ -312,17 +617,66 @@ function rewriteHtml(html, baseUrl, dashboardOrigin) {
 
   // Rewrite <style> blocks
   rewritten = rewritten.replace(/<style([\s\S]*?)>([\s\S]*?)<\/style>/gi, (match, attrs, cssContent) => {
-    const rewrittenCss = rewriteCss(cssContent, baseUrl, dashboardOrigin);
+    const rewrittenCss = rewriteCss(cssContent, baseUrl, dashboardOrigin, csrfToken);
     return `<style${attrs}>${rewrittenCss}</style>`;
   });
 
   // Rewrite inline style attributes
   rewritten = rewritten.replace(/style\s*=\s*(['"])(.*?)\1/gi, (match, quote, styleContent) => {
-    const rewrittenStyle = rewriteCss(styleContent, baseUrl, dashboardOrigin);
+    const rewrittenStyle = rewriteCss(styleContent, baseUrl, dashboardOrigin, csrfToken);
     return `style=${quote}${rewrittenStyle}${quote}`;
   });
 
   return rewritten;
+}
+
+// Helper to check if an IP address is a local/private/reserved IP (for SSRF mitigation)
+function isPrivateIp(ip) {
+  if (ip.includes(':')) {
+    const normalized = ip.toLowerCase().trim();
+    if (normalized === '::1' || normalized === '::') {
+      return true;
+    }
+    // fe80::/10 (Link-local)
+    if (normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb')) {
+      return true;
+    }
+    // fc00::/7 (ULA)
+    if (normalized.startsWith('fc') || normalized.startsWith('fd')) {
+      return true;
+    }
+    // IPv4-mapped IPv6 (::ffff:127.0.0.1 etc.)
+    if (normalized.startsWith('::ffff:')) {
+      const ipv4Part = normalized.substring(7);
+      return isPrivateIp(ipv4Part);
+    }
+    return false;
+  }
+
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(isNaN)) {
+    return true; // Treat malformed IPs as unsafe
+  }
+  const [p0, p1, p2, p3] = parts;
+
+  // 127.0.0.0/8 (Loopback)
+  if (p0 === 127) return true;
+  // 10.0.0.0/8 (Private)
+  if (p0 === 10) return true;
+  // 172.16.0.0/12 (Private)
+  if (p0 === 172 && (p1 >= 16 && p1 <= 31)) return true;
+  // 192.168.0.0/16 (Private)
+  if (p0 === 192 && p1 === 168) return true;
+  // 169.254.0.0/16 (Link-local)
+  if (p0 === 169 && p1 === 254) return true;
+  // 0.0.0.0/8 (Broadcast/Any)
+  if (p0 === 0) return true;
+  // 224.0.0.0/4 (Multicast)
+  if (p0 >= 224 && p0 <= 239) return true;
+  // 255.255.255.255/32 (Broadcast)
+  if (p0 === 255) return true;
+
+  return false;
 }
 
 // REST API — proxy external web requests to bypass Content Security Policy (CSP) and X-Frame-Options framing restrictions
@@ -332,22 +686,69 @@ app.get('/api/proxy', async (req, res) => {
     return res.status(400).send('Missing url parameter');
   }
 
-  // Normalize localhost to 127.0.0.1 to avoid IPv6 resolution issues with Node fetch
-  try {
-    const urlObj = new URL(targetUrl);
-    if (urlObj.hostname === 'localhost') {
-      urlObj.hostname = '127.0.0.1';
-      targetUrl = urlObj.href;
+  // Authenticate session securely using cookies or query-based csrf token (to support sandboxed iframe subresources)
+  let session = null;
+  const sessionId = req.cookies['__Host-session-id'];
+  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+    session = auth.sessions[sessionId];
+  } else {
+    const queryCsrf = req.query.csrf;
+    if (queryCsrf) {
+      const now = Date.now();
+      for (const s of Object.values(auth.sessions)) {
+        if (s.csrfToken === queryCsrf && new Date(s.expiresAt).getTime() > now) {
+          session = s;
+          break;
+        }
+      }
     }
-  } catch (e) {}
+  }
+
+  if (!session) {
+    return res.status(401).send('Unauthorized');
+  }
+
+  const csrfToken = session.csrfToken;
+
+  // Normalize and validate target URL to prevent SSRF (Server-Side Request Forgery)
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(targetUrl);
+  } catch (e) {
+    return res.status(400).send('Invalid url');
+  }
+
+  // Normalize localhost to 127.0.0.1 to avoid IPv6 resolution issues with Node fetch
+  if (parsedUrl.hostname === 'localhost') {
+    parsedUrl.hostname = '127.0.0.1';
+    targetUrl = parsedUrl.href;
+  }
+
+  // SSRF Protection: Resolve hostname and verify resolved IPs are not private/loopback/multicast
+  try {
+    const dns = require('dns').promises;
+    const dnsLookup = await dns.lookup(parsedUrl.hostname, { all: true });
+    const ips = dnsLookup.map(r => r.address);
+    
+    const hasPrivate = ips.some(ip => isPrivateIp(ip));
+    if (hasPrivate) {
+      const allowLocal = process.env.ALLOW_LOCAL_PROXY === 'true' || process.env.NODE_ENV !== 'production';
+      if (!allowLocal) {
+        console.warn(`[Proxy] Blocked SSRF attempt to private IP(s) ${ips.join(', ')} for hostname: ${parsedUrl.hostname}`);
+        return res.status(403).send('Access to local/private network addresses is forbidden.');
+      } else {
+        console.log(`[Proxy] Allowing proxy request to private IP(s) ${ips.join(', ')} in development/local mode`);
+      }
+    }
+  } catch (err) {
+    const allowLocal = process.env.ALLOW_LOCAL_PROXY === 'true' || process.env.NODE_ENV !== 'production';
+    if (!allowLocal) {
+      console.warn(`[Proxy] DNS resolution failed for hostname ${parsedUrl.hostname}: ${err.message}`);
+      return res.status(400).send('Invalid target hostname or DNS resolution failed');
+    }
+  }
 
   try {
-    let parsedUrl;
-    try {
-      parsedUrl = new URL(targetUrl);
-    } catch (e) {
-      return res.status(400).send('Invalid url');
-    }
 
     let response;
     try {
@@ -396,7 +797,7 @@ app.get('/api/proxy', async (req, res) => {
 
     if (contentType && contentType.includes('text/html')) {
       let html = await response.text();
-      html = rewriteHtml(html, finalUrl, dashboardOrigin);
+      html = rewriteHtml(html, finalUrl, dashboardOrigin, csrfToken);
 
       // Inject secure sandbox-to-parent communication script
       const scriptToInject = `
@@ -434,7 +835,7 @@ app.get('/api/proxy', async (req, res) => {
       res.send(html);
     } else if (contentType && (contentType.includes('text/css') || finalParsedUrl.pathname.endsWith('.css'))) {
       let css = await response.text();
-      css = rewriteCss(css, finalUrl, dashboardOrigin);
+      css = rewriteCss(css, finalUrl, dashboardOrigin, csrfToken);
       res.send(css);
     } else {
       const buffer = await response.arrayBuffer();
@@ -444,6 +845,31 @@ app.get('/api/proxy', async (req, res) => {
     console.error(`[Proxy] Error fetching ${targetUrl}:`, err.message);
     res.removeHeader('content-type'); // Prevent Express crash if content-type was invalid
     res.status(500).send(`Proxy Error: ${err.message}`);
+  }
+});
+
+// Authenticate socket connections
+io.use((socket, next) => {
+  const cookieHeader = socket.handshake.headers.cookie;
+  let sessionId = null;
+  if (cookieHeader) {
+    const cookies = {};
+    cookieHeader.split(';').forEach(c => {
+      const parts = c.split('=');
+      if (parts.length >= 2) {
+        const name = parts[0].trim();
+        const val = parts.slice(1).join('=').trim();
+        cookies[name] = decodeURIComponent(val);
+      }
+    });
+    sessionId = cookies['__Host-session-id'];
+  }
+  
+  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+    socket.session = auth.sessions[sessionId];
+    next();
+  } else {
+    next(new Error('Unauthorized socket connection'));
   }
 });
 

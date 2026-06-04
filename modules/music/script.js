@@ -1,8 +1,3 @@
-/* ═══════════════════════════════════════
-   Vibes Dashboard — Music System
-   AudioContext, Analyser, and Visualizer
-   ═══════════════════════════════════════ */
-
 (function () {
   'use strict';
 
@@ -21,20 +16,9 @@
   };
 
   // ── DOM ──
-  const musicPanel = document.getElementById('music-panel');
-  const btnMusic = document.getElementById('nav-audio');
-  const btnClose = document.getElementById('music-close');
-  const btnPlayPause = document.getElementById('btn-play-pause');
-  const btnPrev = document.getElementById('btn-prev');
-  const btnNext = document.getElementById('btn-next');
-  const volSlider = document.getElementById('volume-slider');
-  const trackName = document.getElementById('track-name');
-  const trackArtist = document.getElementById('track-artist');
-  const playlistEl = document.getElementById('playlist');
-  const visualizerCanvas = document.getElementById('player-visualizer');
-  const miniCanvas = document.getElementById('mini-visualizer');
-  const vCtx = visualizerCanvas.getContext('2d');
-  const mCtx = miniCanvas ? miniCanvas.getContext('2d') : null;
+  let visualizerCanvas, miniCanvas, vCtx, mCtx;
+  let btnPlayPause, btnPrev, btnNext, volSlider, trackName, trackArtist, playlistEl;
+  let playIcon, pauseIcon;
 
   // Sound Effects (Disabled due to external 403 errors)
   const sounds = {
@@ -42,46 +26,30 @@
     modal: { play: () => { }, currentTime: 0 },
   };
 
-  // Icons
-  const playIcon = document.getElementById('play-icon');
-  const pauseIcon = document.getElementById('pause-icon');
-
   // Audio Element
   const audio = new Audio();
   audio.crossOrigin = "anonymous";
   audio.volume = 0.5;
 
-  // ── Initialization ──
-  async function init() {
-    try {
-      const response = await fetch('/api/audio');
-      PLAYLIST = await response.json();
+  function init() {
+    visualizerCanvas = document.getElementById('player-visualizer');
+    miniCanvas = document.getElementById('mini-visualizer');
+    
+    if (!visualizerCanvas) return; // Guard for script load timing
+    
+    vCtx = visualizerCanvas.getContext('2d');
+    mCtx = miniCanvas ? miniCanvas.getContext('2d') : null;
 
-      if (PLAYLIST.length > 0) {
-        renderPlaylist();
-        loadTrack(0);
-      } else {
-        trackName.textContent = 'No Audio Found';
-        trackArtist.textContent = 'Add MP3s to public/audio';
-      }
-    } catch (e) {
-      console.error('Failed to load playlist:', e);
-    }
+    btnPlayPause = document.getElementById('btn-play-pause');
+    btnPrev = document.getElementById('btn-prev');
+    btnNext = document.getElementById('btn-next');
+    volSlider = document.getElementById('volume-slider');
+    trackName = document.getElementById('track-name');
+    trackArtist = document.getElementById('track-artist');
+    playlistEl = document.getElementById('playlist');
 
-    // Sidebar Toggle
-    btnMusic.addEventListener('click', () => {
-      musicPanel.classList.toggle('hidden');
-      if (!musicPanel.classList.contains('hidden')) {
-        btnMusic.classList.add('active');
-      } else {
-        btnMusic.classList.remove('active');
-      }
-    });
-
-    btnClose.addEventListener('click', () => {
-      musicPanel.classList.add('hidden');
-      btnMusic.classList.remove('active');
-    });
+    playIcon = document.getElementById('play-icon');
+    pauseIcon = document.getElementById('pause-icon');
 
     // Controls
     btnPlayPause.addEventListener('click', togglePlay);
@@ -96,13 +64,40 @@
 
     // Resize visualizer
     window.addEventListener('resize', resizeVisualizers);
-    resizeVisualizers();
+    
+    // Listen for dashboard view changed events to handle canvas resizing correctly
+    document.addEventListener('dashboard:view-changed', (e) => {
+      if (e.detail.id === 'music') {
+        resizeVisualizers();
+      }
+    });
+
+    // Load Playlist data
+    fetchPlaylist();
+  }
+
+  async function fetchPlaylist() {
+    try {
+      const response = await fetch('/api/audio');
+      PLAYLIST = await response.json();
+
+      if (PLAYLIST.length > 0) {
+        renderPlaylist();
+        loadTrack(0);
+      } else {
+        trackName.textContent = 'No Audio Found';
+        trackArtist.textContent = 'Add MP3s to public/audio';
+      }
+    } catch (e) {
+      console.error('[Music] Failed to load playlist:', e);
+    }
   }
 
   function resizeVisualizers() {
+    if (!visualizerCanvas) return;
     const rect = visualizerCanvas.parentElement.getBoundingClientRect();
-    visualizerCanvas.width = rect.width;
-    visualizerCanvas.height = rect.height;
+    visualizerCanvas.width = rect.width || 300;
+    visualizerCanvas.height = rect.height || 300;
 
     const mainCanvas = document.getElementById('main-visualizer');
     if (mainCanvas && mainCanvas.parentElement) {
@@ -113,32 +108,33 @@
   }
 
   function renderPlaylist() {
+    if (!playlistEl) return;
     playlistEl.replaceChildren();
+    
     PLAYLIST.forEach((track, i) => {
       const item = document.createElement('div');
       item.className = `playlist-item ${i === state.currentIndex ? 'active' : ''}`;
       
-      const indexDiv = document.createElement('div');
-      indexDiv.className = 'item-index';
-      indexDiv.textContent = (i + 1).toString().padStart(2, '0');
+      const idxDiv = document.createElement('div');
+      idxDiv.className = 'item-index';
+      idxDiv.textContent = (i + 1).toString().padStart(2, '0');
+      item.appendChild(idxDiv);
 
       const infoDiv = document.createElement('div');
       infoDiv.className = 'item-info';
-
+      
       const nameDiv = document.createElement('div');
       nameDiv.className = 'item-name';
       nameDiv.textContent = track.name;
+      infoDiv.appendChild(nameDiv);
 
       const artistDiv = document.createElement('div');
       artistDiv.className = 'item-artist';
       artistDiv.textContent = track.artist;
-
-      infoDiv.appendChild(nameDiv);
       infoDiv.appendChild(artistDiv);
 
-      item.appendChild(indexDiv);
       item.appendChild(infoDiv);
-
+      
       item.addEventListener('click', () => loadTrack(i, true));
       playlistEl.appendChild(item);
     });
@@ -147,6 +143,8 @@
   function loadTrack(index, autoPlay = false) {
     state.currentIndex = index;
     const track = PLAYLIST[index];
+    if (!track) return;
+    
     audio.src = track.url;
     trackName.textContent = track.name;
     trackArtist.textContent = track.artist;
@@ -157,7 +155,7 @@
     });
 
     // Auto-map visualizer background mode to track names/themes
-    if (window.bgEffect && track && track.name) {
+    if (window.bgEffect && track.name) {
       const name = track.name.toLowerCase();
       if (name.includes('cyber') || name.includes('synth') || name.includes('neon') || name.includes('grid')) {
         window.bgEffect.setMode('Cyber Stream');
@@ -207,16 +205,16 @@
 
     audio.play();
     state.isPlaying = true;
-    playIcon.classList.add('hidden');
-    pauseIcon.classList.remove('hidden');
+    if (playIcon) playIcon.classList.add('hidden');
+    if (pauseIcon) pauseIcon.classList.remove('hidden');
     startVisualizer();
   }
 
   function pauseTrack() {
     audio.pause();
     state.isPlaying = false;
-    playIcon.classList.remove('hidden');
-    pauseIcon.classList.add('hidden');
+    if (playIcon) playIcon.classList.remove('hidden');
+    if (pauseIcon) pauseIcon.classList.add('hidden');
   }
 
   function nextTrack() {
@@ -247,8 +245,6 @@
       console.warn('AudioContext setup failed:', e);
     }
   }
-
-
 
   function startVisualizer() {
     if (state.animationId) cancelAnimationFrame(state.animationId);
@@ -336,7 +332,6 @@
           mainCtx.beginPath();
           mainCtx.lineWidth = 6;
           mainCtx.lineCap = 'round';
-          // Use theme colors
           const r = Math.min(255, 59 + val * 100);
           const g = Math.min(255, 130 + i * 2);
           const b = 246;
@@ -370,6 +365,7 @@
     playModal: () => { sounds.modal.currentTime = 0; sounds.modal.play(); }
   };
 
+  // Initialize
   init();
 
 })();

@@ -28,17 +28,56 @@
     termPromptCwd.textContent = display;
   }
 
+  function createPromptSpan() {
+    const promptSpan = document.createElement('span');
+    promptSpan.className = 'terminal-prompt';
+
+    const userSpan = document.createElement('span');
+    userSpan.className = 'terminal-user';
+    userSpan.textContent = 'stephen';
+
+    const atSpan = document.createElement('span');
+    atSpan.className = 'terminal-at';
+    atSpan.textContent = '@';
+
+    const hostSpan = document.createElement('span');
+    hostSpan.className = 'terminal-host';
+    hostSpan.textContent = 'vibes-dashboard';
+
+    const colonSpan = document.createElement('span');
+    colonSpan.className = 'terminal-colon';
+    colonSpan.textContent = ':';
+
+    const cwdSpan = document.createElement('span');
+    cwdSpan.className = 'terminal-cwd';
+    cwdSpan.textContent = termPromptCwd.textContent;
+
+    const charSpan = document.createElement('span');
+    charSpan.className = 'terminal-char';
+    charSpan.textContent = '$';
+
+    promptSpan.appendChild(userSpan);
+    promptSpan.appendChild(atSpan);
+    promptSpan.appendChild(hostSpan);
+    promptSpan.appendChild(colonSpan);
+    promptSpan.appendChild(cwdSpan);
+    promptSpan.appendChild(charSpan);
+    return promptSpan;
+  }
+
   function executeCommand(command) {
     if (!command.trim()) {
       // Just print a blank prompt line
       const line = document.createElement('div');
       line.className = 'terminal-input-line-echo';
-      line.innerHTML = `
-        <span class="terminal-prompt">
-          <span class="terminal-user">stephen</span><span class="terminal-at">@</span><span class="terminal-host">vibes-dashboard</span><span class="terminal-colon">:</span><span class="terminal-cwd">${escapeHtml(termPromptCwd.textContent)}</span><span class="terminal-char">$</span>
-        </span>
-        <span class="terminal-command-echo"></span>
-      `;
+      
+      const promptSpan = createPromptSpan();
+      const commandSpan = document.createElement('span');
+      commandSpan.className = 'terminal-command-echo';
+
+      line.appendChild(promptSpan);
+      line.appendChild(commandSpan);
+
       termOutput.appendChild(line);
       termBody.scrollTop = termBody.scrollHeight;
       return;
@@ -51,18 +90,21 @@
     // Print command echo
     const line = document.createElement('div');
     line.className = 'terminal-input-line-echo';
-    line.innerHTML = `
-      <span class="terminal-prompt">
-        <span class="terminal-user">stephen</span><span class="terminal-at">@</span><span class="terminal-host">vibes-dashboard</span><span class="terminal-colon">:</span><span class="terminal-cwd">${escapeHtml(termPromptCwd.textContent)}</span><span class="terminal-char">$</span>
-      </span>
-      <span class="terminal-command-echo">${escapeHtml(command)}</span>
-    `;
+
+    const promptSpan = createPromptSpan();
+    const commandSpan = document.createElement('span');
+    commandSpan.className = 'terminal-command-echo';
+    commandSpan.textContent = command;
+
+    line.appendChild(promptSpan);
+    line.appendChild(commandSpan);
+
     termOutput.appendChild(line);
     termBody.scrollTop = termBody.scrollHeight;
 
     // Special clear command (client-side only)
     if (command.trim() === 'clear') {
-      termOutput.innerHTML = '';
+      termOutput.replaceChildren();
       return;
     }
 
@@ -71,12 +113,6 @@
     btnSigint.classList.remove('hidden');
 
     socket.emit('terminal-run', { command, cwd: currentCwd });
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
   }
 
   // Socket output listeners
@@ -138,7 +174,7 @@
   });
 
   btnClear.addEventListener('click', () => {
-    termOutput.innerHTML = '';
+    termOutput.replaceChildren();
     termInput.focus();
   });
 
