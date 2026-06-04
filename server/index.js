@@ -630,6 +630,55 @@ function rewriteHtml(html, baseUrl, dashboardOrigin, csrfToken) {
   return rewritten;
 }
 
+// Helper to check if an IP address is a local/private/reserved IP (for SSRF mitigation)
+function isPrivateIp(ip) {
+  if (ip.includes(':')) {
+    const normalized = ip.toLowerCase().trim();
+    if (normalized === '::1' || normalized === '::') {
+      return true;
+    }
+    // fe80::/10 (Link-local)
+    if (normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb')) {
+      return true;
+    }
+    // fc00::/7 (ULA)
+    if (normalized.startsWith('fc') || normalized.startsWith('fd')) {
+      return true;
+    }
+    // IPv4-mapped IPv6 (::ffff:127.0.0.1 etc.)
+    if (normalized.startsWith('::ffff:')) {
+      const ipv4Part = normalized.substring(7);
+      return isPrivateIp(ipv4Part);
+    }
+    return false;
+  }
+
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(isNaN)) {
+    return true; // Treat malformed IPs as unsafe
+  }
+  const [p0, p1, p2, p3] = parts;
+
+  // 127.0.0.0/8 (Loopback)
+  if (p0 === 127) return true;
+  // 10.0.0.0/8 (Private)
+  if (p0 === 10) return true;
+  // 172.16.0.0/12 (Private)
+  if (p0 === 172 && (p1 >= 16 && p1 <= 31)) return true;
+  // 192.168.0.0/16 (Private)
+  if (p0 === 192 && p1 === 168) return true;
+  // 169.254.0.0/16 (Link-local)
+  if (p0 === 169 && p1 === 254) return true;
+  // 0.0.0.0/8 (Broadcast/Any)
+  if (p0 === 0) return true;
+  // 224.0.0.0/4 (Multicast)
+  if (p0 >= 224 && p0 <= 239) return true;
+  // 255.255.255.255/32 (Broadcast)
+  if (p0 === 255) return true;
+
+  return false;
+}
+
 // REST API — proxy external web requests to bypass Content Security Policy (CSP) and X-Frame-Options framing restrictions
 app.get('/api/proxy', async (req, res) => {
   let targetUrl = req.query.url;
@@ -661,22 +710,45 @@ app.get('/api/proxy', async (req, res) => {
 
   const csrfToken = session.csrfToken;
 
-  // Normalize localhost to 127.0.0.1 to avoid IPv6 resolution issues with Node fetch
+  // Normalize and validate target URL to prevent SSRF (Server-Side Request Forgery)
+  let parsedUrl;
   try {
-    const urlObj = new URL(targetUrl);
-    if (urlObj.hostname === 'localhost') {
-      urlObj.hostname = '127.0.0.1';
-      targetUrl = urlObj.href;
+    parsedUrl = new URL(targetUrl);
+  } catch (e) {
+    return res.status(400).send('Invalid url');
+  }
+
+  // Normalize localhost to 127.0.0.1 to avoid IPv6 resolution issues with Node fetch
+  if (parsedUrl.hostname === 'localhost') {
+    parsedUrl.hostname = '127.0.0.1';
+    targetUrl = parsedUrl.href;
+  }
+
+  // SSRF Protection: Resolve hostname and verify resolved IPs are not private/loopback/multicast
+  try {
+    const dns = require('dns').promises;
+    const dnsLookup = await dns.lookup(parsedUrl.hostname, { all: true });
+    const ips = dnsLookup.map(r => r.address);
+    
+    const hasPrivate = ips.some(ip => isPrivateIp(ip));
+    if (hasPrivate) {
+      const allowLocal = process.env.ALLOW_LOCAL_PROXY === 'true' || process.env.NODE_ENV !== 'production';
+      if (!allowLocal) {
+        console.warn(`[Proxy] Blocked SSRF attempt to private IP(s) ${ips.join(', ')} for hostname: ${parsedUrl.hostname}`);
+        return res.status(403).send('Access to local/private network addresses is forbidden.');
+      } else {
+        console.log(`[Proxy] Allowing proxy request to private IP(s) ${ips.join(', ')} in development/local mode`);
+      }
     }
-  } catch (e) {}
+  } catch (err) {
+    const allowLocal = process.env.ALLOW_LOCAL_PROXY === 'true' || process.env.NODE_ENV !== 'production';
+    if (!allowLocal) {
+      console.warn(`[Proxy] DNS resolution failed for hostname ${parsedUrl.hostname}: ${err.message}`);
+      return res.status(400).send('Invalid target hostname or DNS resolution failed');
+    }
+  }
 
   try {
-    let parsedUrl;
-    try {
-      parsedUrl = new URL(targetUrl);
-    } catch (e) {
-      return res.status(400).send('Invalid url');
-    }
 
     let response;
     try {

@@ -82,7 +82,16 @@ function verifyPassword(password, storedHashAndSalt) {
     const [hash, salt] = parts;
     crypto.scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (err, derivedKey) => {
       if (err) return reject(err);
-      resolve(derivedKey.toString('hex') === hash);
+      
+      const derivedHex = derivedKey.toString('hex');
+      // Use timingSafeEqual to prevent timing attacks on hash verification
+      const hashBuffer = Buffer.from(hash, 'hex');
+      const derivedBuffer = Buffer.from(derivedHex, 'hex');
+      if (hashBuffer.length !== derivedBuffer.length) {
+        resolve(false);
+      } else {
+        resolve(crypto.timingSafeEqual(hashBuffer, derivedBuffer));
+      }
     });
   });
 }
