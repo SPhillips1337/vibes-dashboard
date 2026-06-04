@@ -409,6 +409,7 @@
         // Populate Custom English dropdown profiles
         const select = panel.querySelector('#setting-voice');
         const populate = () => {
+          const voices = window.speechSynthesis ? window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en')) : [];
           select.replaceChildren();
           const optDefault = document.createElement('option');
           optDefault.value = '';
