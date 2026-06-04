@@ -547,8 +547,13 @@
       if (icon.trim().startsWith('<')) {
         try {
           const parser = new DOMParser();
-          const doc = parser.parseFromString(icon, 'image/svg+xml');
-          iconDiv.appendChild(doc.documentElement);
+          const doc = parser.parseFromString(icon, 'text/html');
+          const svg = doc.body.querySelector('svg');
+          if (svg) {
+            iconDiv.appendChild(svg);
+          } else {
+            iconDiv.textContent = icon;
+          }
         } catch (err) {
           iconDiv.textContent = icon;
         }

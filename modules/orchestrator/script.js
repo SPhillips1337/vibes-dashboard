@@ -380,9 +380,10 @@
         const parser = new DOMParser();
         const doc = parser.parseFromString(
           `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" /></svg>`,
-          'image/svg+xml'
+          'text/html'
         );
-        retryBtn.appendChild(doc.documentElement);
+        const svg = doc.body.querySelector('svg');
+        if (svg) retryBtn.appendChild(svg);
       } catch (err) {
         console.error('[Orchestrator] Failed to parse retry icon:', err);
       }

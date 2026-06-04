@@ -107,9 +107,14 @@
 
     // Safe inline icons support
     if (tab.iconHTML) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(tab.iconHTML, 'image/svg+xml');
-      btn.appendChild(doc.documentElement);
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(tab.iconHTML, 'text/html');
+        const svg = doc.body.querySelector('svg');
+        if (svg) btn.appendChild(svg);
+      } catch (err) {
+        console.error(`[Settings] Failed to parse icon HTML for tab ${tab.id}:`, err);
+      }
     }
     const labelSpan = document.createElement('span');
     labelSpan.textContent = tab.title;
@@ -579,9 +584,10 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(
                   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>`,
-                  'image/svg+xml'
+                  'text/html'
                 );
-                editBtn.appendChild(doc.documentElement);
+                const svg = doc.body.querySelector('svg');
+                if (svg) editBtn.appendChild(svg);
               } catch (err) {
                 console.error('[Settings] Failed to parse Edit icon:', err);
               }
@@ -612,16 +618,17 @@
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'btn-icon delete';
                 deleteBtn.title = 'Delete user';
-                try {
-                  const parser = new DOMParser();
-                  const doc = parser.parseFromString(
-                    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>`,
-                    'image/svg+xml'
-                  );
-                  deleteBtn.appendChild(doc.documentElement);
-                } catch (err) {
-                  console.error('[Settings] Failed to parse Delete icon:', err);
-                }
+                 try {
+                   const parser = new DOMParser();
+                   const doc = parser.parseFromString(
+                     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>`,
+                     'text/html'
+                   );
+                   const svg = doc.body.querySelector('svg');
+                   if (svg) deleteBtn.appendChild(svg);
+                 } catch (err) {
+                   console.error('[Settings] Failed to parse Delete icon:', err);
+                 }
                 deleteBtn.addEventListener('click', async () => {
                   if (confirm(`Are you sure you want to permanently delete operator "${u.name}"?`)) {
                     try {

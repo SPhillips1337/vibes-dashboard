@@ -56,8 +56,13 @@
     if (module.icon) {
       try {
         const parser = new DOMParser();
-        const doc = parser.parseFromString(module.icon, 'image/svg+xml');
-        btn.appendChild(doc.documentElement);
+        const doc = parser.parseFromString(module.icon, 'text/html');
+        const svg = doc.body.querySelector('svg');
+        if (svg) {
+          btn.appendChild(svg);
+        } else {
+          btn.textContent = module.icon;
+        }
       } catch (err) {
         console.error(`[Launcher] Failed to parse icon for module ${module.id}:`, err);
       }
