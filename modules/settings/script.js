@@ -35,6 +35,9 @@
 
     // Render all pre-registered or pending tabs
     initializeTabs();
+
+    // Setup logical focus flow and keyboard navigation
+    setupKeyboardNavigation(rootPanel);
   }
 
   // Initialize immediately since script is dynamically loaded
@@ -99,6 +102,8 @@
     btn.dataset.tab = tab.id;
     btn.setAttribute('role', 'tab');
     btn.setAttribute('aria-selected', 'false');
+    btn.setAttribute('tabindex', '-1');
+    btn.setAttribute('aria-controls', `tab-panel-${tab.id}`);
 
     // Safe inline icons support
     if (tab.iconHTML) {
@@ -122,6 +127,7 @@
     panel.className = 'settings-panel hidden';
     panel.id = `tab-panel-${tab.id}`;
     panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', `tab-btn-${tab.id}`);
     
     try {
       const parser = new DOMParser();
@@ -152,6 +158,7 @@
       const active = btn.dataset.tab === id;
       btn.classList.toggle('active', active);
       btn.setAttribute('aria-selected', String(active));
+      btn.setAttribute('tabindex', active ? '0' : '-1');
     });
 
     panels.forEach(panel => {
@@ -725,6 +732,135 @@
       const raw = localStorage.getItem(key);
       return raw ? { ...defaults, ...JSON.parse(raw) } : { ...defaults };
     } catch (_) { return { ...defaults }; }
+  }
+
+  // ── Keyboard Accessibility & Focus Flow Manager ──
+  function setupKeyboardNavigation(rootPanel) {
+    rootPanel.addEventListener('keydown', (e) => {
+      const activeEl = document.activeElement;
+      
+      const tabList = rootPanel.querySelector('#settings-tabs-list');
+      if (!tabList) return;
+      
+      const tabs = Array.from(tabList.querySelectorAll('.settings-tab'));
+      
+      // Arrow Up/Down navigation on setting tab buttons
+      if (activeEl && activeEl.classList.contains('settings-tab')) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const index = tabs.indexOf(activeEl);
+          if (index !== -1) {
+            let nextIndex;
+            if (e.key === 'ArrowDown') {
+              nextIndex = (index + 1) % tabs.length;
+            } else {
+              nextIndex = (index - 1 + tabs.length) % tabs.length;
+            }
+            const nextTab = tabs[nextIndex];
+            if (nextTab) {
+              activateTab(nextTab.dataset.tab);
+              nextTab.focus();
+            }
+          }
+          return;
+        }
+      }
+      
+      // Custom Tab / Shift+Tab logical routing
+      if (e.key === 'Tab') {
+        const activeTab = tabList.querySelector('.settings-tab.active');
+        const activePanel = rootPanel.querySelector('.settings-panel:not(.hidden)');
+        const saveBtn = rootPanel.querySelector('#settings-save-btn');
+        const logoutBtn = rootPanel.querySelector('#settings-logout-btn');
+        
+        let panelFocusables = [];
+        if (activePanel) {
+          const candidates = activePanel.querySelectorAll('input, select, textarea, button, [tabindex="0"]');
+          panelFocusables = Array.from(candidates).filter(el => {
+            if (el.disabled) return false;
+            if (el.getAttribute('tabindex') === '-1') return false;
+            return el.offsetWidth > 0 || el.offsetHeight > 0 || el.getClientRects().length > 0;
+          });
+        }
+        
+        // Tab from active settings tab -> focus first panel input
+        if (activeEl === activeTab && !e.shiftKey) {
+          e.preventDefault();
+          if (panelFocusables.length > 0) {
+            panelFocusables[0].focus();
+          } else if (saveBtn) {
+            saveBtn.focus();
+          } else if (logoutBtn) {
+            logoutBtn.focus();
+          }
+          return;
+        }
+        
+        // Shift+Tab from first panel input -> active settings tab
+        if (panelFocusables.length > 0 && activeEl === panelFocusables[0] && e.shiftKey) {
+          e.preventDefault();
+          if (activeTab) {
+            activeTab.focus();
+          }
+          return;
+        }
+        
+        // Tab from last panel input -> Save configurations button
+        if (panelFocusables.length > 0 && activeEl === panelFocusables[panelFocusables.length - 1] && !e.shiftKey) {
+          e.preventDefault();
+          if (saveBtn) {
+            saveBtn.focus();
+          } else if (logoutBtn) {
+            logoutBtn.focus();
+          } else if (activeTab) {
+            activeTab.focus();
+          }
+          return;
+        }
+        
+        // Tab / Shift+Tab from Save Button
+        if (activeEl === saveBtn) {
+          if (!e.shiftKey) {
+            e.preventDefault();
+            if (logoutBtn) {
+              logoutBtn.focus();
+            } else if (activeTab) {
+              activeTab.focus();
+            }
+            return;
+          } else {
+            e.preventDefault();
+            if (panelFocusables.length > 0) {
+              panelFocusables[panelFocusables.length - 1].focus();
+            } else if (activeTab) {
+              activeTab.focus();
+            }
+            return;
+          }
+        }
+        
+        // Tab / Shift+Tab from Logout Button
+        if (activeEl === logoutBtn) {
+          if (!e.shiftKey) {
+            e.preventDefault();
+            if (activeTab) {
+              activeTab.focus();
+            }
+            return;
+          } else {
+            e.preventDefault();
+            if (saveBtn) {
+              saveBtn.focus();
+            } else if (panelFocusables.length > 0) {
+              panelFocusables[panelFocusables.length - 1].focus();
+            } else if (activeTab) {
+              activeTab.focus();
+            }
+            return;
+          }
+        }
+      }
+    });
   }
 
 })();
