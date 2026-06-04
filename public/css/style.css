@@ -2412,3 +2412,144 @@ body.light-mode select option {
 .toggle.active::after {
   transform: translateX(22px);
 }
+
+/* ── Login Overlay & Forms ── */
+.login-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(8, 8, 16, 0.45);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.login-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.login-card {
+  width: 90%;
+  max-width: 420px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow), 0 24px 64px rgba(0, 0, 0, 0.6);
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: modalIn 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s ease;
+}
+
+.login-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-logo {
+  width: 64px;
+  height: 64px;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 16px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.3));
+}
+
+.login-logo svg {
+  width: 36px;
+  height: 36px;
+}
+
+.login-header h2 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.login-header p {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.login-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-error-msg {
+  font-size: 13px;
+  color: var(--danger);
+  min-height: 18px;
+  text-align: center;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 14px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transition: var(--transition);
+}
+
+.login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+}
+
+/* ── Sidebar Drag and Drop ── */
+.sidebar-btn.wobbling {
+  animation: sidebarWobble 0.25s infinite alternate ease-in-out;
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+  background: var(--surface-hover);
+  z-index: 100;
+  cursor: grabbing;
+}
+
+@keyframes sidebarWobble {
+  0% { transform: rotate(-1.5deg) scale(1.05); }
+  100% { transform: rotate(1.5deg) scale(1.05); }
+}
+
+.sidebar-btn.dragging {
+  opacity: 0.7;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 16px var(--primary);
+  background: var(--surface-hover) !important;
+  z-index: 1000;
+  cursor: grabbing;
+  transition: none !important;
+}

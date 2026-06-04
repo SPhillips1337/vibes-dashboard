@@ -51,3 +51,6 @@ VFX-LINKS2.md
 
 # Project manifest (dev-only, may contain confidential context)
 project.json
+
+# Local database storage & session data
+server/data/

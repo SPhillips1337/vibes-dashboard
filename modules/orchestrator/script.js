@@ -601,4 +601,309 @@
     }, { label: 'Terminate All Agents', icon: '🛑', destructive: true });
   }
 
+  // ── Register Settings Tabs (LLM & Orchestration) ──
+  if (window.Dashboard && window.Dashboard.registerSettingsTab) {
+    const DEFAULT_LLM = { provider: 'disabled', hostUrl: '', model: '', apiKey: '', maxTokens: 1024 };
+    const DEFAULT_ORCHESTRATION = { executionMode: 'auto', vibesPath: '' };
+
+    function loadPrefs(key, defaults) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? { ...defaults, ...JSON.parse(raw) } : { ...defaults };
+      } catch (_) { return { ...defaults }; }
+    }
+
+    // LLM Tab Specs
+    const llmTab = {
+      id: 'llm',
+      title: 'LLM Backend',
+      iconHTML: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>`,
+      htmlContent: `
+        <div class="settings-section">
+          <h3 class="settings-section-title">AI Engine Provider</h3>
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-label">Model Backend</span>
+              <span class="settings-desc">Choose which LLM provider engine to orchestrate your agents</span>
+            </div>
+            <div class="settings-field">
+              <select id="setting-provider">
+                <option value="disabled">Disabled / Local Only</option>
+                <option value="ollama">Ollama (Local)</option>
+                <option value="lm-studio">LM Studio (Local)</option>
+                <option value="openai-compatible">OpenAI Compatible (Remote/API)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section llm-fields hidden" id="llm-fields-ollama">
+          <h3 class="settings-section-title">Ollama Details</h3>
+          <div class="settings-grid-row">
+            <div class="settings-field">
+              <label>Host URL</label>
+              <input type="text" id="setting-ollama-host" placeholder="http://localhost:11434">
+            </div>
+            <div class="settings-field">
+              <label>Model selection</label>
+              <select id="setting-ollama-model">
+                <option value="llama3.2">llama3.2</option>
+                <option value="llama3.1">llama3.1</option>
+                <option value="mistral">mistral</option>
+                <option value="other">Other (type below)</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-field hidden" id="ollama-custom-model-row" style="margin-top:12px;">
+            <label>Custom Model Name</label>
+            <input type="text" id="setting-ollama-custom-model" placeholder="e.g. qwen2.5">
+          </div>
+        </div>
+
+        <div class="settings-section llm-fields hidden" id="llm-fields-lm-studio">
+          <h3 class="settings-section-title">LM Studio Details</h3>
+          <div class="settings-grid-row">
+            <div class="settings-field">
+              <label>Host URL</label>
+              <input type="text" id="setting-lm-host" placeholder="http://localhost:1234/v1">
+            </div>
+            <div class="settings-field">
+              <label>Model Identifier</label>
+              <input type="text" id="setting-lm-model" placeholder="local-model">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section llm-fields hidden" id="llm-fields-openai-compatible">
+          <h3 class="settings-section-title">OpenAI Compatible Gateway</h3>
+          <div class="settings-grid-row" style="margin-bottom:12px;">
+            <div class="settings-field">
+              <label>API Endpoint Host</label>
+              <input type="text" id="setting-openai-host" placeholder="https://api.openai.com/v1">
+            </div>
+            <div class="settings-field">
+              <label>Model ID</label>
+              <input type="text" id="setting-openai-model" placeholder="gpt-4o-mini">
+            </div>
+          </div>
+          
+          <div class="settings-grid-row">
+            <div class="settings-field">
+              <label>Secure API Access Key</label>
+              <div style="display:flex; gap:8px;">
+                <input type="password" id="setting-openai-key" style="flex:1;" placeholder="sk-...">
+                <button class="btn" id="setting-key-toggle" style="padding:10px 14px;">👁</button>
+              </div>
+            </div>
+            <div class="settings-field">
+              <label>Max Generation Tokens</label>
+              <input type="number" id="setting-max-tokens" min="64" max="32768" value="1024">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section" id="llm-actions-section" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid var(--border); padding-top:16px;">
+            <button class="btn btn-primary" id="setting-test-connection" style="padding:10px 18px; font-size:13px;">Test Backend Connection</button>
+            <span class="save-status-msg" id="setting-test-result" style="font-size:13.5px; font-weight:500;"></span>
+          </div>
+        </div>
+      `,
+      onLoad: (panel) => {
+        const llm = loadPrefs('vibes-llm-prefs', DEFAULT_LLM);
+        
+        const provSelect = panel.querySelector('#setting-provider');
+        provSelect.value = llm.provider;
+
+        // Populate fields
+        panel.querySelector('#setting-ollama-host').value = llm.hostUrl || 'http://localhost:11434';
+        panel.querySelector('#setting-ollama-model').value = llm.model || 'llama3.2';
+        panel.querySelector('#setting-lm-host').value = llm.hostUrl || 'http://localhost:1234/v1';
+        panel.querySelector('#setting-lm-model').value = llm.model || 'local-model';
+        panel.querySelector('#setting-openai-host').value = llm.hostUrl || 'https://api.openai.com/v1';
+        panel.querySelector('#setting-openai-model').value = llm.model || 'gpt-4o-mini';
+        panel.querySelector('#setting-openai-key').value = llm.apiKey || '';
+        panel.querySelector('#setting-max-tokens').value = llm.maxTokens || 1024;
+
+        // Custom ollama model row toggle
+        const ollamaModelSel = panel.querySelector('#setting-ollama-model');
+        const ollamaCustomRow = panel.querySelector('#ollama-custom-model-row');
+        
+        const toggleOllamaCustom = () => {
+          ollamaCustomRow.classList.toggle('hidden', ollamaModelSel.value !== 'other');
+        };
+        ollamaModelSel.addEventListener('change', toggleOllamaCustom);
+        if (llm.provider === 'ollama' && !['llama3.2', 'llama3.1', 'mistral'].includes(llm.model)) {
+          ollamaModelSel.value = 'other';
+          panel.querySelector('#setting-ollama-custom-model').value = llm.model;
+          toggleOllamaCustom();
+        }
+
+        // Show fields based on provider
+        const showLLMFields = (prov) => {
+          panel.querySelectorAll('.llm-fields').forEach(el => el.classList.add('hidden'));
+          panel.querySelector('#llm-actions-section').style.display = prov === 'disabled' ? 'none' : 'block';
+          if (prov !== 'disabled') {
+            panel.querySelector(`#llm-fields-${prov}`).classList.remove('hidden');
+          }
+        };
+
+        provSelect.addEventListener('change', function() {
+          showLLMFields(this.value);
+          panel.querySelector('#setting-test-result').textContent = '';
+        });
+        showLLMFields(llm.provider);
+
+        // Key masking toggle
+        panel.querySelector('#setting-key-toggle').addEventListener('click', (e) => {
+          e.preventDefault();
+          const keyInput = panel.querySelector('#setting-openai-key');
+          const isPass = keyInput.type === 'password';
+          keyInput.type = isPass ? 'text' : 'password';
+          e.target.textContent = isPass ? '🙈' : '👁';
+        });
+
+        // Test connection logic
+        panel.querySelector('#setting-test-connection').addEventListener('click', async (e) => {
+          e.preventDefault();
+          const resultEl = panel.querySelector('#setting-test-result');
+          resultEl.textContent = 'Testing connection...';
+          resultEl.className = 'save-status-msg';
+
+          const prov = provSelect.value;
+          let host = '';
+          let model = '';
+          let key = '';
+
+          if (prov === 'ollama') {
+            host = panel.querySelector('#setting-ollama-host').value.trim();
+            model = ollamaModelSel.value === 'other' ? panel.querySelector('#setting-ollama-custom-model').value.trim() : ollamaModelSel.value;
+          } else if (prov === 'lm-studio') {
+            host = panel.querySelector('#setting-lm-host').value.trim();
+            model = panel.querySelector('#setting-lm-model').value.trim();
+          } else if (prov === 'openai-compatible') {
+            host = panel.querySelector('#setting-openai-host').value.trim();
+            model = panel.querySelector('#setting-openai-model').value.trim();
+            key = panel.querySelector('#setting-openai-key').value;
+          }
+
+          try {
+            if (prov === 'ollama') {
+              const resp = await fetch(`${host.replace(/\/+$/, '')}/api/tags`);
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              const data = await resp.json();
+              const models = (data.models || []).map(m => m.name);
+              
+              resultEl.textContent = '✅ Connected successfully';
+              resultEl.className = 'save-status-msg success';
+
+              if (models.length) {
+                const cur = ollamaModelSel.value;
+                ollamaModelSel.innerHTML = '';
+                models.forEach(m => {
+                  const opt = document.createElement('option');
+                  opt.value = m;
+                  opt.textContent = m;
+                  ollamaModelSel.appendChild(opt);
+                });
+                const optOther = document.createElement('option');
+                optOther.value = 'other';
+                optOther.textContent = 'Other (type below)';
+                ollamaModelSel.appendChild(optOther);
+                if (models.includes(cur)) ollamaModelSel.value = cur;
+              }
+            } else if (prov === 'lm-studio' || prov === 'openai-compatible') {
+              const resp = await fetch(`${host.replace(/\/+$/, '')}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...(key ? { 'Authorization': `Bearer ${key}` } : {}) },
+                body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 })
+              });
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              resultEl.textContent = '✅ Connected successfully';
+              resultEl.className = 'save-status-msg success';
+            }
+          } catch (err) {
+            resultEl.textContent = `❌ Test failed: ${err.message}`;
+            resultEl.className = 'save-status-msg error';
+          }
+        });
+      },
+      onSave: (panel) => {
+        const provider = panel.querySelector('#setting-provider').value;
+        let hostUrl = '', model = '', apiKey = '';
+        const maxTokens = parseInt(panel.querySelector('#setting-max-tokens').value || '1024');
+
+        if (provider === 'ollama') {
+          hostUrl = panel.querySelector('#setting-ollama-host').value.trim();
+          const selectVal = panel.querySelector('#setting-ollama-model').value;
+          model = selectVal === 'other' ? panel.querySelector('#setting-ollama-custom-model').value.trim() : selectVal;
+        } else if (provider === 'lm-studio') {
+          hostUrl = panel.querySelector('#setting-lm-host').value.trim();
+          model = panel.querySelector('#setting-lm-model').value.trim();
+        } else if (provider === 'openai-compatible') {
+          hostUrl = panel.querySelector('#setting-openai-host').value.trim();
+          model = panel.querySelector('#setting-openai-model').value.trim();
+          apiKey = panel.querySelector('#setting-openai-key').value;
+        }
+
+        return {
+          key: 'vibes-llm-prefs',
+          data: { provider, hostUrl, model, apiKey, maxTokens }
+        };
+      }
+    };
+
+    // Orchestration Tab Specs
+    const orchTab = {
+      id: 'orchestration',
+      title: 'Agent Orchestration',
+      iconHTML: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon"><circle cx="12" cy="12" r="10" /><polygon points="10 8 16 12 10 16 10 8" /></svg>`,
+      htmlContent: `
+        <div class="settings-section">
+          <h3 class="settings-section-title">Process Configuration</h3>
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-label">Execution Mode</span>
+              <span class="settings-desc">Control whether agent spawns execute real CLI tasks or simulated runs</span>
+            </div>
+            <div class="settings-field">
+              <select id="setting-execution-mode">
+                <option value="auto">Auto-Detect Execution</option>
+                <option value="real">Force Real Vibes Spawns</option>
+                <option value="demo">Demo / Mock Execution Only</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-label">Vibes Repository Path</span>
+              <span class="settings-desc">Absolute local directory where the Vibes engine package resides</span>
+            </div>
+            <div class="settings-field">
+              <input type="text" id="setting-vibes-path" style="width: 280px;" placeholder="e.g. /home/stephen/Vibes">
+            </div>
+          </div>
+        </div>
+      `,
+      onLoad: (panel) => {
+        const prefs = loadPrefs('vibes-orchestration-prefs', DEFAULT_ORCHESTRATION);
+        panel.querySelector('#setting-execution-mode').value = prefs.executionMode || 'auto';
+        panel.querySelector('#setting-vibes-path').value = prefs.vibesPath || '';
+      },
+      onSave: (panel) => {
+        const executionMode = panel.querySelector('#setting-execution-mode').value;
+        const vibesPath = panel.querySelector('#setting-vibes-path').value.trim();
+        return {
+          key: 'vibes-orchestration-prefs',
+          data: { executionMode, vibesPath }
+        };
+      }
+    };
+
+    // Register into the global dashboard
+    window.Dashboard.registerSettingsTab(llmTab);
+    window.Dashboard.registerSettingsTab(orchTab);
+  }
+
 })();

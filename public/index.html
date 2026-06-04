@@ -69,6 +69,37 @@
   <!-- Animated Background Canvas -->
   <canvas id="bg-canvas"></canvas>
 
+  <!-- Login Container -->
+  <div id="login-overlay" class="login-overlay hidden">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+        </div>
+        <h2>Vibes Login</h2>
+        <p>Quantum Agent Orchestration Portal</p>
+      </div>
+      <form id="login-form">
+        <div class="login-form-fields">
+          <div class="form-group">
+            <label for="login-username">Username</label>
+            <input type="text" id="login-username" required placeholder="Enter username" autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" required placeholder="Enter password" autocomplete="current-password">
+          </div>
+        </div>
+        <div class="login-error-msg" id="login-error-msg"></div>
+        <button type="submit" class="btn login-btn">Establish Session</button>
+      </form>
+    </div>
+  </div>
+
   <!-- UI Root -->
   <div id="ui-root">
 
@@ -87,24 +118,16 @@
 
       <div class="sidebar-spacer"></div>
 
-      <!-- Audio Toggle -->
-      <button class="sidebar-btn" id="nav-audio" title="Music Player">
+      <!-- Sign Out -->
+      <button class="sidebar-btn" id="nav-logout" title="Sign Out">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
           stroke-linejoin="round">
-          <path d="M9 18V5l12-2v13" />
-          <circle cx="6" cy="18" r="3" />
-          <circle cx="18" cy="16" r="3" />
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
         </svg>
       </button>
 
-      <button class="sidebar-btn" id="nav-settings" title="Settings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path
-            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
-      </button>
     </nav>
 
     <!-- Main Content Area -->
@@ -197,68 +220,7 @@
         <!-- Views from dynamically loaded modules will be injected here -->
       </div>
 
-      <!-- Music Player Panel -->
-      <div id="music-panel" class="music-panel hidden">
-        <div class="panel-header">
-          <h2>Vibe Station</h2>
-          <button class="panel-close" id="music-close">&times;</button>
-        </div>
-        <div class="panel-body">
-          <div class="player-card glass">
-            <div class="album-art-container">
-              <canvas id="player-visualizer"></canvas>
-              <div class="art-placeholder">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M9 18V5l12-2v13" />
-                  <circle cx="6" cy="18" r="3" />
-                  <circle cx="18" cy="16" r="3" />
-                </svg>
-              </div>
-            </div>
-            <div class="track-info">
-              <div class="track-name" id="track-name">Midnight Protocol</div>
-              <div class="track-artist" id="track-artist">Antigravity Synthesis</div>
-            </div>
-            <div class="player-controls">
-              <button class="ctrl-btn" id="btn-prev" title="Previous">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="19 20 9 12 19 4 19 20" />
-                  <line x1="5" y1="19" x2="5" y2="5" />
-                </svg>
-              </button>
-              <button class="ctrl-btn play-pause" id="btn-play-pause" title="Play/Pause">
-                <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-                <svg id="pause-icon" class="hidden" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="4" width="4" height="16" />
-                  <rect x="14" y="4" width="4" height="16" />
-                </svg>
-              </button>
-              <button class="ctrl-btn" id="btn-next" title="Next">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5 4 15 12 5 20 5 4" />
-                  <line x1="19" y1="5" x2="19" y2="19" />
-                </svg>
-              </button>
-            </div>
-            <div class="volume-container">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="vol-icon">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-              </svg>
-              <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
-            </div>
-          </div>
 
-          <div class="playlist-section">
-            <h3>Playlist</h3>
-            <div class="playlist" id="playlist">
-              <!-- Playlist items injected by JS -->
-            </div>
-          </div>
-        </div>
-      </div>
 
     </div>
   </div>
@@ -272,226 +234,6 @@
 
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
-
-  <!-- Settings Modal -->
-  <div id="settings-overlay" class="modal-overlay hidden">
-    <div class="modal-glass settings-modal">
-      <div class="modal-header">
-        <h2>Settings</h2>
-        <button class="modal-close" id="settings-close-btn">&times;</button>
-      </div>
-
-      <!-- Tab Bar -->
-      <div class="settings-tabs" role="tablist">
-        <button class="settings-tab active" role="tab" aria-selected="true" data-tab="general">General</button>
-        <button class="settings-tab" role="tab" aria-selected="false" data-tab="voice">Voice</button>
-        <button class="settings-tab" role="tab" aria-selected="false" data-tab="llm">LLM Provider</button>
-        <button class="settings-tab" role="tab" aria-selected="false" data-tab="orchestration">Orchestration</button>
-      </div>
-
-      <!-- General Tab -->
-      <div class="settings-panel active" id="settings-general" role="tabpanel">
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Voice Feedback</span>
-            <span class="setting-desc">Speak command confirmations aloud</span>
-          </div>
-          <div class="toggle" id="setting-feedback-toggle"></div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Auto-launch on command</span>
-            <span class="setting-desc">Automatically open the launch modal when "launch agent" is spoken</span>
-          </div>
-          <div class="toggle active" id="setting-autolaunch-toggle"></div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Wake Word ("Vibes")</span>
-            <span class="setting-desc">Continuous listening for the word "Vibes" to activate voice control
-              hands-free</span>
-          </div>
-          <div class="toggle" id="setting-wakeword-toggle"></div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Theme</span>
-            <span class="setting-desc">Dark or light mode</span>
-          </div>
-          <select class="setting-select" id="setting-theme">
-            <option value="dark">Dark Mode</option>
-            <option value="light">Light Mode</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Voice Tab -->
-      <div class="settings-panel hidden" id="settings-voice" role="tabpanel">
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">TTS Voice</span>
-            <span class="setting-desc">Voice used for spoken feedback</span>
-          </div>
-          <select class="setting-select voice-select" id="setting-voice"></select>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Rate</span>
-            <span class="setting-desc">Speech speed</span>
-          </div>
-          <div class="slider-with-value">
-            <input type="range" class="setting-slider" id="setting-rate" min="50" max="200" value="100">
-            <span class="slider-val" id="setting-rate-val">1.0x</span>
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Volume</span>
-            <span class="setting-desc">Speech volume</span>
-          </div>
-          <div class="slider-with-value">
-            <input type="range" class="setting-slider" id="setting-volume" min="0" max="100" value="80">
-            <span class="slider-val" id="setting-volume-val">80%</span>
-          </div>
-        </div>
-        <div class="setting-row">
-          <button class="btn btn-primary btn-sm" id="setting-test-voice">Test Voice</button>
-        </div>
-      </div>
-
-      <!-- LLM Provider Tab -->
-      <div class="settings-panel hidden" id="settings-llm" role="tabpanel">
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Provider</span>
-            <span class="setting-desc">AI model backend for the chat assistant</span>
-          </div>
-          <select class="setting-select" id="setting-provider">
-            <option value="disabled">Disabled</option>
-            <option value="ollama">Ollama</option>
-            <option value="lm-studio">LM Studio</option>
-            <option value="openai-compatible">OpenAI Compatible</option>
-          </select>
-        </div>
-
-        <div class="llm-fields" id="llm-fields-ollama">
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Host URL</span>
-              <span class="setting-desc">Ollama server address</span>
-            </div>
-            <input type="text" class="setting-input" id="setting-ollama-host" value="http://localhost:11434">
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Model</span>
-              <span class="setting-desc">Model name (auto-discovered on test)</span>
-            </div>
-            <select class="setting-select" id="setting-ollama-model">
-              <option value="llama3.2">llama3.2</option>
-              <option value="llama3.1">llama3.1</option>
-              <option value="mistral">mistral</option>
-              <option value="codellama">codellama</option>
-              <option value="mixtral">mixtral</option>
-              <option value="qwen2.5">qwen2.5</option>
-              <option value="phi3">phi3</option>
-              <option value="other">Other (type below)</option>
-            </select>
-          </div>
-          <div class="setting-row" id="ollama-custom-model-row" style="display:none">
-            <div class="setting-info">
-              <span class="setting-label">Custom Model</span>
-            </div>
-            <input type="text" class="setting-input" id="setting-ollama-custom-model" placeholder="Enter model name">
-          </div>
-        </div>
-
-        <div class="llm-fields hidden" id="llm-fields-lm-studio">
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Host URL</span>
-              <span class="setting-desc">LM Studio server address</span>
-            </div>
-            <input type="text" class="setting-input" id="setting-lm-host" value="http://localhost:1234/v1">
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Model</span>
-            </div>
-            <input type="text" class="setting-input" id="setting-lm-model" value="local-model">
-          </div>
-        </div>
-
-        <div class="llm-fields hidden" id="llm-fields-openai-compatible">
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Host URL</span>
-              <span class="setting-desc">OpenAI-compatible endpoint</span>
-            </div>
-            <input type="text" class="setting-input" id="setting-openai-host" value="https://api.openai.com/v1">
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Model</span>
-            </div>
-            <input type="text" class="setting-input" id="setting-openai-model" value="gpt-4o-mini">
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">API Key</span>
-              <span class="setting-desc setting-desc-warn">Stored in browser localStorage</span>
-            </div>
-            <div class="password-field">
-              <input type="password" class="setting-input" id="setting-openai-key" placeholder="sk-...">
-              <button class="pwd-toggle" id="setting-key-toggle" title="Show/Hide">👁</button>
-            </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Max Tokens</span>
-            </div>
-            <input type="number" class="setting-input setting-input-narrow" id="setting-max-tokens" value="1024"
-              min="64" max="32768">
-          </div>
-          <div class="setting-row setting-row-warn">
-            <span class="warn-text">⚠ API keys stored in browser localStorage. For production, configure via server
-              environment variables.</span>
-          </div>
-        </div>
-
-        <div class="setting-actions">
-          <button class="btn btn-ghost btn-sm" id="setting-test-connection">Test Connection</button>
-          <span class="test-result" id="setting-test-result"></span>
-        </div>
-      </div>
-
-      <!-- Orchestration Tab -->
-      <div class="settings-panel hidden" id="settings-orchestration" role="tabpanel">
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Execution Mode</span>
-            <span class="setting-desc">Control whether launched agents run real CLI tasks or demo simulations</span>
-          </div>
-          <select class="setting-select" id="setting-execution-mode">
-            <option value="auto">Auto-Detect</option>
-            <option value="real">Real Vibes Agent</option>
-            <option value="demo">Demo / Simulation Mode</option>
-          </select>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Vibes Repository Path</span>
-            <span class="setting-desc">Absolute path to your Vibes project root folder</span>
-          </div>
-          <input type="text" class="setting-input" id="setting-vibes-path" placeholder="/home/stephen/Vibes">
-        </div>
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn btn-primary" id="settings-save-btn">Save Settings</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Voice Help Modal -->
   <div id="voice-help-overlay" class="modal-overlay hidden">
@@ -536,9 +278,8 @@
   <!-- Socket.io Client -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="js/background.js"></script>
-  <script src="js/music.js"></script>
+
   <script src="js/voice.js"></script>
-  <script src="js/settings.js"></script>
   <script src="js/app.js"></script>
 </body>
 
