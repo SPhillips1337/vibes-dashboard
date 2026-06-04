@@ -202,6 +202,11 @@ app.get('/api/auth/status', (req, res) => {
 
 // ROUTE GUARD: Require authentication and CSRF token for all other /api/* endpoints
 app.use('/api', (req, res, next) => {
+  // Bypassing /api/proxy because it implements custom session/csrf validation to support sandboxed iframe requests
+  if (req.path === '/proxy') {
+    return next();
+  }
+
   const sessionId = req.cookies['__Host-session-id'];
   if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
     req.session = auth.sessions[sessionId];
@@ -562,7 +567,7 @@ app.post('/api/users/module-order', (req, res) => {
 });
 
 // Helper function to rewrite CSS url(...) declarations
-function rewriteCss(css, baseUrl, dashboardOrigin) {
+function rewriteCss(css, baseUrl, dashboardOrigin, csrfToken) {
   return css.replace(/url\((['"]?)(.*?)\1\)/gi, (match, quote, val) => {
     const cleanVal = val.trim();
     if (!cleanVal || cleanVal.startsWith('data:') || cleanVal.startsWith('javascript:') || cleanVal.startsWith('#')) {
@@ -573,7 +578,11 @@ function rewriteCss(css, baseUrl, dashboardOrigin) {
       if (resolvedUrl.startsWith(dashboardOrigin)) {
         return match;
       }
-      return `url(${quote}/api/proxy?url=${encodeURIComponent(resolvedUrl)}${quote})`;
+      let proxyUrl = `/api/proxy?url=${encodeURIComponent(resolvedUrl)}`;
+      if (csrfToken) {
+        proxyUrl += `&csrf=${encodeURIComponent(csrfToken)}`;
+      }
+      return `url(${quote}${proxyUrl}${quote})`;
     } catch (e) {
       return match;
     }
@@ -581,7 +590,7 @@ function rewriteCss(css, baseUrl, dashboardOrigin) {
 }
 
 // Helper function to rewrite HTML attributes (href, src, action) and styling
-function rewriteHtml(html, baseUrl, dashboardOrigin) {
+function rewriteHtml(html, baseUrl, dashboardOrigin, csrfToken) {
   // Rewrite href, src, action attributes
   let rewritten = html.replace(/(href|src|action)\s*=\s*(['"])(.*?)\2/gi, (match, attr, quote, value) => {
     const cleanValue = value.trim();
@@ -596,7 +605,11 @@ function rewriteHtml(html, baseUrl, dashboardOrigin) {
       if (resolvedUrl.startsWith(dashboardOrigin)) {
         return match;
       }
-      return `${attr}=${quote}/api/proxy?url=${encodeURIComponent(resolvedUrl)}${quote}`;
+      let proxyUrl = `/api/proxy?url=${encodeURIComponent(resolvedUrl)}`;
+      if (csrfToken) {
+        proxyUrl += `&csrf=${encodeURIComponent(csrfToken)}`;
+      }
+      return `${attr}=${quote}${proxyUrl}${quote}`;
     } catch (e) {
       return match;
     }
@@ -604,13 +617,13 @@ function rewriteHtml(html, baseUrl, dashboardOrigin) {
 
   // Rewrite <style> blocks
   rewritten = rewritten.replace(/<style([\s\S]*?)>([\s\S]*?)<\/style>/gi, (match, attrs, cssContent) => {
-    const rewrittenCss = rewriteCss(cssContent, baseUrl, dashboardOrigin);
+    const rewrittenCss = rewriteCss(cssContent, baseUrl, dashboardOrigin, csrfToken);
     return `<style${attrs}>${rewrittenCss}</style>`;
   });
 
   // Rewrite inline style attributes
   rewritten = rewritten.replace(/style\s*=\s*(['"])(.*?)\1/gi, (match, quote, styleContent) => {
-    const rewrittenStyle = rewriteCss(styleContent, baseUrl, dashboardOrigin);
+    const rewrittenStyle = rewriteCss(styleContent, baseUrl, dashboardOrigin, csrfToken);
     return `style=${quote}${rewrittenStyle}${quote}`;
   });
 
@@ -623,6 +636,30 @@ app.get('/api/proxy', async (req, res) => {
   if (!targetUrl) {
     return res.status(400).send('Missing url parameter');
   }
+
+  // Authenticate session securely using cookies or query-based csrf token (to support sandboxed iframe subresources)
+  let session = null;
+  const sessionId = req.cookies['__Host-session-id'];
+  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+    session = auth.sessions[sessionId];
+  } else {
+    const queryCsrf = req.query.csrf;
+    if (queryCsrf) {
+      const now = Date.now();
+      for (const s of Object.values(auth.sessions)) {
+        if (s.csrfToken === queryCsrf && new Date(s.expiresAt).getTime() > now) {
+          session = s;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!session) {
+    return res.status(401).send('Unauthorized');
+  }
+
+  const csrfToken = session.csrfToken;
 
   // Normalize localhost to 127.0.0.1 to avoid IPv6 resolution issues with Node fetch
   try {
@@ -688,7 +725,7 @@ app.get('/api/proxy', async (req, res) => {
 
     if (contentType && contentType.includes('text/html')) {
       let html = await response.text();
-      html = rewriteHtml(html, finalUrl, dashboardOrigin);
+      html = rewriteHtml(html, finalUrl, dashboardOrigin, csrfToken);
 
       // Inject secure sandbox-to-parent communication script
       const scriptToInject = `
@@ -726,7 +763,7 @@ app.get('/api/proxy', async (req, res) => {
       res.send(html);
     } else if (contentType && (contentType.includes('text/css') || finalParsedUrl.pathname.endsWith('.css'))) {
       let css = await response.text();
-      css = rewriteCss(css, finalUrl, dashboardOrigin);
+      css = rewriteCss(css, finalUrl, dashboardOrigin, csrfToken);
       res.send(css);
     } else {
       const buffer = await response.arrayBuffer();

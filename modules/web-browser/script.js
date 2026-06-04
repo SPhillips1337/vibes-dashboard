@@ -42,7 +42,8 @@
       }
     } catch (_) {}
     if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
-      return '/api/proxy?url=' + encodeURIComponent(targetUrl);
+      const csrf = (window.Dashboard && window.Dashboard.csrfToken) ? window.Dashboard.csrfToken : '';
+      return `/api/proxy?url=${encodeURIComponent(targetUrl)}&csrf=${encodeURIComponent(csrf)}`;
     }
     return targetUrl;
   }
