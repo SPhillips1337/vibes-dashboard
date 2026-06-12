@@ -1,0 +1,123 @@
+<div class="linkedin-overview-module glass">
+  <div class="linkedin-hero">
+    <div class="linkedin-branding">
+      <div class="linkedin-mark" aria-hidden="true">
+        <span>in</span>
+      </div>
+      <div class="linkedin-copy">
+        <p class="linkedin-eyebrow">Native dashboard panel</p>
+        <h2>LinkedIn Overview</h2>
+        <p class="linkedin-description">
+          A native view into the local LinkedIn content calendar at
+          <code>/var/www/html/LinkedIn/data/content_calendar.json</code>, plus the latest RSS import logs.
+        </p>
+      </div>
+    </div>
+
+    <div class="linkedin-status-card">
+      <div class="linkedin-status-topline">
+        <span class="linkedin-status-dot" id="linkedin-status-dot"></span>
+        <span class="linkedin-status-label" id="linkedin-status-label">Loading overview…</span>
+      </div>
+      <div class="linkedin-status-url" id="linkedin-status-url">Source: /var/www/html/LinkedIn/data/content_calendar.json</div>
+      <div class="linkedin-status-meta" id="linkedin-status-meta">Waiting for the first refresh.</div>
+    </div>
+  </div>
+
+  <div class="linkedin-controls">
+    <label class="linkedin-url-field" for="linkedin-base-url-input">
+      <span>LinkedIn app base URL</span>
+      <input id="linkedin-base-url-input" type="text" spellcheck="false" autocomplete="off" value="http://127.0.0.1:8080" />
+    </label>
+
+    <div class="linkedin-toolbar-actions">
+      <button class="linkedin-action-btn primary" id="linkedin-refresh-btn" title="Reload the dashboard data">Refresh Overview</button>
+      <button class="linkedin-action-btn" id="linkedin-open-dashboard-btn" title="Open the LinkedIn dashboard in a new tab">Open Dashboard</button>
+      <button class="linkedin-action-btn" id="linkedin-open-review-btn" title="Open the approval queue in the LinkedIn app">Open Review Queue</button>
+      <button class="linkedin-action-btn" id="linkedin-open-rss-btn" title="Open the LinkedIn RSS import tools">Open RSS Tools</button>
+      <button class="linkedin-action-btn" id="linkedin-copy-path-btn" title="Copy the local data source path">Copy Data Path</button>
+    </div>
+  </div>
+
+  <div class="linkedin-summary-grid" id="linkedin-summary-grid">
+    <div class="linkedin-metric-card">
+      <div class="linkedin-metric-label">Total posts</div>
+      <div class="linkedin-metric-value" id="linkedin-total-posts">—</div>
+      <div class="linkedin-metric-note">All items in the content calendar</div>
+    </div>
+    <div class="linkedin-metric-card">
+      <div class="linkedin-metric-label">Pending review</div>
+      <div class="linkedin-metric-value" id="linkedin-pending-review">—</div>
+      <div class="linkedin-metric-note">Needs human approval</div>
+    </div>
+    <div class="linkedin-metric-card">
+      <div class="linkedin-metric-label">Approved</div>
+      <div class="linkedin-metric-value" id="linkedin-approved">—</div>
+      <div class="linkedin-metric-note">Ready for publish</div>
+    </div>
+    <div class="linkedin-metric-card">
+      <div class="linkedin-metric-label">Published</div>
+      <div class="linkedin-metric-value" id="linkedin-published">—</div>
+      <div class="linkedin-metric-note">Already shipped</div>
+    </div>
+  </div>
+
+  <div class="linkedin-panels">
+    <section class="linkedin-card linkedin-snapshot-card">
+      <div class="linkedin-card-heading linkedin-heading-row">
+        <div>
+          <h3>Approval queue</h3>
+          <p>Pending review items pulled from the local content calendar.</p>
+        </div>
+        <span class="linkedin-chip neutral" id="linkedin-queue-count">0 queued</span>
+      </div>
+      <div class="linkedin-queue-list" id="linkedin-approval-queue">
+        <div class="linkedin-empty-note">Waiting for queue data…</div>
+      </div>
+      <div class="linkedin-status-chips" id="linkedin-status-chips"></div>
+    </section>
+
+    <div class="linkedin-side-column">
+      <section class="linkedin-card linkedin-activity-card">
+        <div class="linkedin-card-heading">
+          <h3>Recent content</h3>
+          <p>Newest items from the content calendar.</p>
+        </div>
+        <div class="linkedin-recent-list" id="linkedin-recent-list"></div>
+      </section>
+
+      <section class="linkedin-card linkedin-rss-card">
+        <div class="linkedin-card-heading linkedin-heading-row">
+          <div>
+            <h3>RSS import / trigger status</h3>
+            <p>Latest log from the local RSS importer.</p>
+          </div>
+          <span class="linkedin-chip muted" id="linkedin-rss-job-count">0 logs</span>
+        </div>
+
+        <div class="linkedin-rss-status-block">
+          <div class="linkedin-status-topline">
+            <span class="linkedin-status-dot" id="linkedin-rss-status-dot"></span>
+            <span class="linkedin-status-label" id="linkedin-rss-status-label">Waiting for RSS status…</span>
+          </div>
+          <div class="linkedin-status-meta" id="linkedin-rss-status-meta">No log has been loaded yet.</div>
+          <div class="linkedin-rss-backend-alert" id="linkedin-rss-backend-alert" hidden></div>
+        </div>
+
+        <div class="linkedin-rss-trigger-controls">
+          <label class="linkedin-rss-trigger-field" for="linkedin-rss-count-input">
+            <span>Max posts</span>
+            <input id="linkedin-rss-count-input" type="number" min="1" max="10" step="1" value="5" />
+          </label>
+          <button class="linkedin-action-btn primary" id="linkedin-run-rss-btn" title="Trigger the RSS importer now">Run RSS Import</button>
+        </div>
+
+        <div class="linkedin-rss-log" id="linkedin-rss-log">
+          <div class="linkedin-empty-note">No RSS logs available yet.</div>
+        </div>
+
+        <div class="linkedin-rss-chips" id="linkedin-rss-chips"></div>
+      </section>
+    </div>
+  </div>
+</div>

@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { Server } = require('socket.io');
 const { VibesBridge } = require('./vibes-bridge');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const app = express();
 const certDir = path.join(__dirname, '..', 'certs');
@@ -488,6 +488,229 @@ app.post('/api/settings', (req, res) => {
   } catch (err) {
     console.error('[Settings] Error writing settings file:', err);
     res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+// REST API — LinkedIn content calendar overview from the local PHP project
+app.get('/api/linkedin/overview', (req, res) => {
+  const linkedInDataPath = '/var/www/html/LinkedIn/data/content_calendar.json';
+
+  try {
+    if (!fs.existsSync(linkedInDataPath)) {
+      return res.json({
+        sourcePath: linkedInDataPath,
+        totalPosts: 0,
+        statusCounts: {},
+        pendingReviewCount: 0,
+        latestCreatedAt: null,
+        nextScheduled: null,
+        recentPosts: [],
+        pendingReviewPosts: [],
+        updatedAt: null
+      });
+    }
+
+    const raw = fs.readFileSync(linkedInDataPath, 'utf8');
+    const posts = JSON.parse(raw);
+    const list = Array.isArray(posts) ? posts : [];
+    const statusCounts = {};
+
+    const cleanText = (value, maxLength = 180) => {
+      const text = String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!text) return '';
+      return text.length > maxLength ? `${text.slice(0, maxLength).trimEnd()}…` : text;
+    };
+
+    const parseDate = (value) => {
+      const ts = value ? new Date(value).getTime() : Number.NaN;
+      return Number.isFinite(ts) ? ts : null;
+    };
+
+    const mapPost = (post) => ({
+      id: post.id,
+      topic: post.topic || 'Untitled post',
+      status: post.status || 'unknown',
+      created_at: post.created_at || null,
+      scheduled_time: post.scheduled_time || null,
+      published_at: post.published_at || null,
+      link: post.link || null,
+      summaryPreview: cleanText(post.summary || post.content, 260),
+      hasImage: Boolean(post.image_path)
+    });
+
+    for (const post of list) {
+      const status = post.status || 'unknown';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    }
+
+    const byCreated = [...list].sort((a, b) => {
+      const aTs = parseDate(a.created_at) ?? 0;
+      const bTs = parseDate(b.created_at) ?? 0;
+      return bTs - aTs;
+    });
+
+    const pendingReviewPosts = byCreated
+      .filter(post => ['pending_review', 'pending'].includes(String(post.status || '').toLowerCase()))
+      .slice(0, 8)
+      .map(mapPost);
+
+    const scheduled = [...list]
+      .filter(post => parseDate(post.scheduled_time) !== null)
+      .sort((a, b) => (parseDate(a.scheduled_time) ?? 0) - (parseDate(b.scheduled_time) ?? 0));
+
+    const nextScheduled = scheduled.find(post => (parseDate(post.scheduled_time) ?? 0) >= Date.now()) || scheduled[0] || null;
+
+    const recentPosts = byCreated.slice(0, 8).map(mapPost);
+
+    const stat = fs.statSync(linkedInDataPath);
+
+    res.json({
+      sourcePath: linkedInDataPath,
+      totalPosts: list.length,
+      pendingReviewCount: pendingReviewPosts.length,
+      statusCounts,
+      latestCreatedAt: byCreated[0]?.created_at || null,
+      nextScheduled: nextScheduled
+        ? {
+            id: nextScheduled.id,
+            topic: nextScheduled.topic || 'Untitled post',
+            status: nextScheduled.status || 'unknown',
+            scheduled_time: nextScheduled.scheduled_time || null,
+            link: nextScheduled.link || null
+          }
+        : null,
+      recentPosts,
+      pendingReviewPosts,
+      updatedAt: stat.mtime.toISOString()
+    });
+  } catch (err) {
+    console.error('[LinkedIn] Failed to build overview:', err);
+    res.status(500).json({ error: 'Failed to load LinkedIn overview' });
+  }
+});
+
+// REST API — current RSS import / trigger status from the local LinkedIn project
+app.get('/api/linkedin/rss-status', (req, res) => {
+  const logsDir = '/var/www/html/LinkedIn/logs';
+
+  try {
+    if (!fs.existsSync(logsDir)) {
+      return res.json({
+        sourceDir: logsDir,
+        jobCount: 0,
+        latestJob: null,
+        updatedAt: null
+      });
+    }
+
+    const logFiles = fs.readdirSync(logsDir)
+      .filter(name => /^rss_job_rss_[0-9a-f.]+\.log$/.test(name))
+      .map(name => ({
+        name,
+        path: path.join(logsDir, name),
+        stat: fs.statSync(path.join(logsDir, name))
+      }))
+      .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
+
+    if (!logFiles.length) {
+      return res.json({
+        sourceDir: logsDir,
+        jobCount: 0,
+        latestJob: null,
+        updatedAt: fs.statSync(logsDir).mtime.toISOString()
+      });
+    }
+
+    const latest = logFiles[0];
+    const logs = fs.readFileSync(latest.path, 'utf8');
+    const recentLogs = logs.length > 9000 ? logs.slice(-9000) : logs;
+    const jobId = latest.name.replace(/^rss_job_(rss_[0-9a-f.]+)\.log$/, '$1');
+    const psResult = spawnSync('ps', ['aux'], { encoding: 'utf8' });
+    const processRunning = Boolean(psResult.stdout && psResult.stdout.includes(latest.name));
+    const success = recentLogs.includes('RSS import completed successfully') || recentLogs.includes('Saved to calendar');
+    const error = recentLogs.includes('Error generating post:') || recentLogs.includes('Traceback') || recentLogs.includes('Ollama is not available') || recentLogs.includes('Please check the endpoint.');
+    const done = success || error || (!processRunning && recentLogs.length > 0);
+
+    const lines = recentLogs.split(/\r?\n/).filter(Boolean);
+    const processingCount = lines.filter(line => line.includes('Processing:')).length;
+    const savedCount = lines.filter(line => line.includes('Saved to calendar')).length;
+    const errorCount = lines.filter(line => line.includes('Error generating post:')).length;
+    const errorDetail = error
+      ? lines.find(line => /Ollama|Traceback|ModuleNotFoundError|Error generating post|ComfyUI generation failed/i.test(line)) || 'RSS import finished with errors'
+      : null;
+    const lastMarker = success
+      ? 'RSS import completed successfully'
+      : error
+        ? errorDetail
+        : processRunning
+          ? 'Running'
+          : 'No active process detected';
+
+    res.json({
+      sourceDir: logsDir,
+      jobCount: logFiles.length,
+      latestJob: {
+        jobId,
+        logPath: latest.path,
+        updatedAt: latest.stat.mtime.toISOString(),
+        ageSeconds: Math.max(0, Math.round((Date.now() - latest.stat.mtimeMs) / 1000)),
+        done,
+        running: !done,
+        success,
+        error,
+        processRunning,
+        processingCount,
+        savedCount,
+        errorCount,
+        lastMarker,
+        logExcerpt: lines.slice(-40).join('\n')
+      },
+      updatedAt: latest.stat.mtime.toISOString()
+    });
+  } catch (err) {
+    console.error('[LinkedIn] Failed to build RSS status:', err);
+    res.status(500).json({ error: 'Failed to load LinkedIn RSS status' });
+  }
+});
+
+app.post('/api/linkedin/rss-trigger', requireAdmin, (req, res) => {
+  const projectRoot = '/var/www/html/LinkedIn';
+  const scriptPath = path.join(projectRoot, 'examples', 'rss_to_linkedin.py');
+  const logsDir = path.join(projectRoot, 'logs');
+  const requestedCount = Number.parseInt(req.body?.count, 10);
+  const count = Number.isFinite(requestedCount) ? Math.max(1, Math.min(10, requestedCount)) : 5;
+
+  try {
+    if (!fs.existsSync(scriptPath)) {
+      return res.status(404).json({ error: 'RSS script not found' });
+    }
+
+    fs.mkdirSync(logsDir, { recursive: true });
+
+    const jobId = `rss_${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
+    const logFile = path.join(logsDir, `rss_job_${jobId}.log`);
+    const logFd = fs.openSync(logFile, 'a');
+
+    const child = spawn('python3', ['-u', scriptPath, '--max-posts', String(count), '--job-id', jobId], {
+      cwd: projectRoot,
+      detached: true,
+      stdio: ['ignore', logFd, logFd]
+    });
+
+    child.unref();
+    fs.closeSync(logFd);
+
+    res.json({
+      success: true,
+      jobId,
+      logPath: logFile,
+      count
+    });
+  } catch (err) {
+    console.error('[LinkedIn] Failed to trigger RSS import:', err);
+    res.status(500).json({ error: 'Failed to trigger LinkedIn RSS import' });
   }
 });
 
