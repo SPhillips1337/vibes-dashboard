@@ -21,9 +21,6 @@
 
 .music-playlist-column {
   border-radius: 20px;
-  border: 1px solid var(--border);
-  background: var(--card-bg);
-  backdrop-filter: blur(20px);
   padding: 30px;
   display: flex;
   flex-direction: column;

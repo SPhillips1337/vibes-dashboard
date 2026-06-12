@@ -2,6 +2,23 @@
    Vibes Dashboard — Design System CSS
    ═══════════════════════════════════════════ */
 
+:root {
+  /* Fallbacks for modular framework vars */
+  --bg-glass: var(--surface);
+  --border-glass: var(--border);
+  --glow-color: var(--primary);
+  --text-main: var(--text-primary);
+  --text-muted: var(--text-secondary);
+}
+
+.glass {
+  background: var(--panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
 * {
   margin: 0;
   padding: 0;
