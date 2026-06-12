@@ -874,10 +874,24 @@
             } else if (prov === 'lm-studio' || prov === 'openai-compatible') {
               const resp = await fetch(`${host.replace(/\/+$/, '')}/chat/completions`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...(key ? { 'Authorization': `Bearer ${key}` } : {}) },
-                body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 })
+                headers: { 
+                  'Content-Type': 'application/json', 
+                  ...(key ? { 'Authorization': `Bearer ${key}` } : {}) 
+                },
+                body: JSON.stringify({ 
+                  model: model || 'local-model', 
+                  messages: [
+                    { role: 'system', content: 'Connection test.' },
+                    { role: 'user', content: 'ping' }
+                  ], 
+                  max_tokens: 10,
+                  stream: false
+                })
               });
-              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.error?.message || `HTTP ${resp.status}`);
+              }
               resultEl.textContent = '✅ Connected successfully';
               resultEl.className = 'save-status-msg success';
             }

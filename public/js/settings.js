@@ -256,10 +256,24 @@
         const key = document.getElementById('setting-openai-key')?.value || '';
         const resp = await fetch(`${hostUrl.replace(/\/+$/, '')}/chat/completions`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(key ? { 'Authorization': `Bearer ${key}` } : {}) },
-          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }),
+          headers: { 
+            'Content-Type': 'application/json', 
+            ...(key ? { 'Authorization': `Bearer ${key}` } : {}) 
+          },
+          body: JSON.stringify({ 
+            model: model || 'local-model', 
+            messages: [
+              { role: 'system', content: 'Connection test.' },
+              { role: 'user', content: 'ping' }
+            ], 
+            max_tokens: 10,
+            stream: false
+          }),
         });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `HTTP ${resp.status}`);
+        }
         ok = true;
       } else {
         throw new Error('No provider selected');
