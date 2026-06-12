@@ -18,6 +18,7 @@
   };
 
   // ── DOM ──
+  let viewPanel = null;
   let visualizerCanvas, miniCanvas, vCtx, mCtx;
   let btnPlayPause, btnPrev, btnNext, btnShuffle, btnRepeat, volSlider, trackName, trackArtist, playlistEl;
   let playIcon, pauseIcon;
@@ -33,30 +34,31 @@
   audio.crossOrigin = "anonymous";
   audio.volume = 0.5;
 
-  function init() {
-    visualizerCanvas = document.getElementById('player-visualizer');
-    miniCanvas = document.getElementById('mini-visualizer');
+  function init(panel) {
+    viewPanel = panel;
+    visualizerCanvas = viewPanel.querySelector('#player-visualizer');
+    miniCanvas = viewPanel.querySelector('#mini-visualizer');
     
-    if (!visualizerCanvas) return; // Guard for script load timing
+    if (!visualizerCanvas) return;
     
     vCtx = visualizerCanvas.getContext('2d');
     mCtx = miniCanvas ? miniCanvas.getContext('2d') : null;
 
-    btnPlayPause = document.getElementById('btn-play-pause');
-    btnPrev = document.getElementById('btn-prev');
-    btnNext = document.getElementById('btn-next');
-    btnShuffle = document.getElementById('btn-shuffle');
-    btnRepeat = document.getElementById('btn-repeat');
-    volSlider = document.getElementById('volume-slider');
-    trackName = document.getElementById('track-name');
-    trackArtist = document.getElementById('track-artist');
-    playlistEl = document.getElementById('playlist');
+    btnPlayPause = viewPanel.querySelector('#btn-play-pause');
+    btnPrev = viewPanel.querySelector('#btn-prev');
+    btnNext = viewPanel.querySelector('#btn-next');
+    btnShuffle = viewPanel.querySelector('#btn-shuffle');
+    btnRepeat = viewPanel.querySelector('#btn-repeat');
+    volSlider = viewPanel.querySelector('#volume-slider');
+    trackName = viewPanel.querySelector('#track-name');
+    trackArtist = viewPanel.querySelector('#track-artist');
+    playlistEl = viewPanel.querySelector('#playlist');
 
-    playIcon = document.getElementById('play-icon');
-    pauseIcon = document.getElementById('pause-icon');
+    playIcon = viewPanel.querySelector('#play-icon');
+    pauseIcon = viewPanel.querySelector('#pause-icon');
 
     // Tabs
-    const tabBtns = document.querySelectorAll('.music-tab-btn');
+    const tabBtns = viewPanel.querySelectorAll('.music-tab-btn');
     tabBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const tabId = btn.dataset.tab;
@@ -65,8 +67,8 @@
     });
 
     // Search
-    const searchBtn = document.getElementById('btn-music-search');
-    const searchInput = document.getElementById('music-search-input');
+    const searchBtn = viewPanel.querySelector('#btn-music-search');
+    const searchInput = viewPanel.querySelector('#music-search-input');
     if (searchBtn && searchInput) {
       searchBtn.addEventListener('click', () => searchMusic(searchInput.value));
       searchInput.addEventListener('keydown', (e) => {
@@ -75,7 +77,7 @@
     }
 
     // Download playlist
-    const downloadBtn = document.getElementById('btn-download-playlist');
+    const downloadBtn = viewPanel.querySelector('#btn-download-playlist');
     if (downloadBtn) {
       downloadBtn.addEventListener('click', downloadFullPlaylist);
     }
@@ -93,25 +95,126 @@
     // Audio Events
     audio.addEventListener('ended', handleTrackEnd);
 
-    // Resize visualizer
-    window.addEventListener('resize', resizeVisualizers);
-    
-    // Listen for dashboard view changed events to handle canvas resizing correctly
-    document.addEventListener('dashboard:view-changed', (e) => {
-      if (e.detail.id === 'music') {
-        resizeVisualizers();
-      }
-    });
-
     // Load Playlist data
     fetchPlaylist();
   }
 
+  async function fetchPlaylist() {
+    try {
+      const response = await fetch('/api/audio');
+      PLAYLIST = await response.json();
+
+      if (PLAYLIST.length > 0) {
+        renderPlaylist();
+        loadTrack(0);
+      } else {
+        trackName.textContent = 'No Audio Found';
+        trackArtist.textContent = 'Add MP3s to public/audio';
+      }
+    } catch (e) {
+      console.error('[Music] Failed to load playlist:', e);
+    }
+  }
+
+  function resizeVisualizers() {
+    if (!visualizerCanvas) return;
+    const rect = visualizerCanvas.parentElement.getBoundingClientRect();
+    visualizerCanvas.width = rect.width || 300;
+    visualizerCanvas.height = rect.height || 300;
+
+    const mainCanvas = document.getElementById('main-visualizer');
+    if (mainCanvas && mainCanvas.parentElement) {
+      const mainRect = mainCanvas.parentElement.getBoundingClientRect();
+      mainCanvas.width = mainRect.width || window.innerWidth;
+      mainCanvas.height = mainRect.height || window.innerHeight;
+    }
+  }
+
+  function renderPlaylist() {
+    if (!playlistEl) return;
+    playlistEl.replaceChildren();
+    
+    PLAYLIST.forEach((track, i) => {
+      const item = document.createElement('div');
+      item.className = `playlist-item ${i === state.currentIndex ? 'active' : ''}`;
+      
+      const idxDiv = document.createElement('div');
+      idxDiv.className = 'item-index';
+      idxDiv.textContent = (i + 1).toString().padStart(2, '0');
+      item.appendChild(idxDiv);
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'item-info';
+      
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'item-name';
+      nameDiv.textContent = track.name;
+      infoDiv.appendChild(nameDiv);
+
+      const artistDiv = document.createElement('div');
+      artistDiv.className = 'item-artist';
+      artistDiv.textContent = track.artist;
+      infoDiv.appendChild(artistDiv);
+
+      item.appendChild(infoDiv);
+      
+      item.addEventListener('click', () => loadTrack(i, true));
+      playlistEl.appendChild(item);
+    });
+  }
+
+  function loadTrack(index, autoPlay = false) {
+    state.currentIndex = index;
+    const track = PLAYLIST[index];
+    if (!track) return;
+    
+    audio.src = track.url;
+    trackName.textContent = track.name;
+    trackArtist.textContent = track.artist;
+
+    // Update active class
+    viewPanel.querySelectorAll('.playlist-item').forEach((item, i) => {
+      item.classList.toggle('active', i === index);
+    });
+
+    // Auto-map visualizer background mode to track names/themes
+    if (window.bgEffect && track.name) {
+      const name = track.name.toLowerCase();
+      if (name.includes('cyber') || name.includes('synth') || name.includes('neon') || name.includes('grid')) {
+        window.bgEffect.setMode('Cyber Stream');
+      } else if (name.includes('fire') || name.includes('ember') || name.includes('flame') || name.includes('heat')) {
+        window.bgEffect.setMode('Ember Storm');
+      } else if (name.includes('void') || name.includes('singularity') || name.includes('black hole') || name.includes('gargantua') || name.includes('space') || name.includes('gravity')) {
+        window.bgEffect.setMode('Gargantua Singularity');
+      } else if (name.includes('aurora') || name.includes('wave') || name.includes('flow') || name.includes('ambient') || name.includes('chill') || name.includes('dream') || name.includes('sky')) {
+        window.bgEffect.setMode('Aurora Waves');
+      } else if (name.includes('lightning') || name.includes('electricity') || name.includes('thunder') || name.includes('volt') || name.includes('storm')) {
+        window.bgEffect.setMode('Electrical Storm');
+      } else if (name.includes('gear') || name.includes('clock') || name.includes('kinetic') || name.includes('mechanism') || name.includes('time') || name.includes('machine')) {
+        window.bgEffect.setMode('Kinetic Clockwork');
+      } else {
+        window.bgEffect.setMode('Nebula Flow');
+      }
+
+      // Update UI mode selector label if it exists in the DOM
+      const vizModeLabel = document.getElementById('viz-mode-label');
+      if (vizModeLabel) {
+        vizModeLabel.textContent = window.bgEffect.getCurrentModeName();
+        vizModeLabel.classList.add('flash');
+        setTimeout(() => { vizModeLabel.classList.remove('flash'); }, 600);
+      }
+    }
+
+    if (autoPlay) {
+      playTrack();
+    }
+  }
+
   function switchTab(tabId) {
-    document.querySelectorAll('.music-tab-btn').forEach(btn => {
+    viewPanel.querySelectorAll('.music-tab-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === tabId);
     });
-    document.querySelectorAll('.music-tab-content').forEach(content => {
+    viewPanel.querySelectorAll('.music-tab-content').forEach(content => {
       content.classList.toggle('hidden', content.id !== `music-tab-${tabId}`);
     });
     if (window.vibePlayer) window.vibePlayer.playClick();
@@ -119,7 +222,7 @@
 
   async function searchMusic(query) {
     if (!query.trim()) return;
-    const resultsEl = document.getElementById('discovery-results');
+    const resultsEl = viewPanel.querySelector('#discovery-results');
     resultsEl.innerHTML = '<div class="empty-discovery">Searching Pixabay...</div>';
 
     try {
@@ -197,9 +300,6 @@
   }
 
   function downloadFullPlaylist() {
-    // Create a zip or just trigger downloads? 
-    // Usually browser allows one download per trigger without permission issues.
-    // We'll just alert for now or implement a backend zip endpoint.
     window.location.href = '/api/music/download-all';
   }
 
@@ -227,7 +327,6 @@
     let index;
     if (state.isShuffle) {
       index = Math.floor(Math.random() * PLAYLIST.length);
-      // Ensure we don't play the same track again if possible
       if (index === state.currentIndex && PLAYLIST.length > 1) {
         index = (index + 1) % PLAYLIST.length;
       }
@@ -247,6 +346,35 @@
       if (index < 0) index = PLAYLIST.length - 1;
     }
     loadTrack(index, true);
+  }
+
+  function togglePlay() {
+    if (state.isPlaying) {
+      pauseTrack();
+    } else {
+      playTrack();
+    }
+  }
+
+  async function playTrack() {
+    if (!state.audioContext) {
+      setupAudioContext();
+    } else if (state.audioContext.state === 'suspended') {
+      await state.audioContext.resume();
+    }
+
+    audio.play();
+    state.isPlaying = true;
+    if (playIcon) playIcon.classList.add('hidden');
+    if (pauseIcon) pauseIcon.classList.remove('hidden');
+    startVisualizer();
+  }
+
+  function pauseTrack() {
+    audio.pause();
+    state.isPlaying = false;
+    if (playIcon) playIcon.classList.remove('hidden');
+    if (pauseIcon) pauseIcon.classList.add('hidden');
   }
 
   function setupAudioContext() {
@@ -283,31 +411,24 @@
 
       vCtx.clearRect(0, 0, width, height);
 
-      // Simple bar visualizer
       for (let i = 0; i < state.dataArray.length; i++) {
         barHeight = (state.dataArray[i] / 255) * height * 0.8;
-
         const r = 59;
         const g = 130 + i;
         const b = 246;
-
         vCtx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
         vCtx.fillRect(x, height - barHeight, barWidth, barHeight);
-
         x += barWidth + 1;
       }
 
-      // Mini Visualizer
       if (mCtx) {
         mCtx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
         const mWidth = miniCanvas.width;
         const mHeight = miniCanvas.height;
         const mBarWidth = mWidth / (state.dataArray.length / 2);
-
         mCtx.beginPath();
         mCtx.lineWidth = 2;
         mCtx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
-
         for (let i = 0; i < state.dataArray.length / 2; i++) {
           const val = state.dataArray[i] / 255;
           const x = i * mBarWidth;
@@ -318,19 +439,15 @@
         mCtx.stroke();
       }
 
-      // Main Visualizer (Circular Glow)
       const mainCanvas = document.getElementById('main-visualizer');
       const mainCtx = mainCanvas ? mainCanvas.getContext('2d') : null;
       if (mainCtx && mainCanvas.offsetParent !== null) {
         mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
-        
         const cx = mainCanvas.width / 2;
         const cy = mainCanvas.height / 2;
         const radius = Math.min(cx, cy) * 0.4;
         const bars = Math.floor(state.dataArray.length / 2);
         const angleStep = (Math.PI * 2) / bars;
-
-        // Draw inner glow circle
         const avg = state.dataArray.reduce((a, b) => a + b) / state.dataArray.length;
         mainCtx.beginPath();
         mainCtx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -338,17 +455,14 @@
         mainCtx.fill();
         mainCtx.shadowBlur = 40;
         mainCtx.shadowColor = `rgba(59, 130, 246, ${avg / 255})`;
-
         for (let i = 0; i < bars; i++) {
           const val = state.dataArray[i] / 255;
           const barLen = val * radius * 1.2;
           const angle = i * angleStep;
-
           const x1 = cx + Math.cos(angle) * radius;
           const y1 = cy + Math.sin(angle) * radius;
           const x2 = cx + Math.cos(angle) * (radius + barLen);
           const y2 = cy + Math.sin(angle) * (radius + barLen);
-
           mainCtx.beginPath();
           mainCtx.lineWidth = 6;
           mainCtx.lineCap = 'round';
@@ -360,10 +474,9 @@
           mainCtx.lineTo(x2, y2);
           mainCtx.stroke();
         }
-        mainCtx.shadowBlur = 0; // reset
+        mainCtx.shadowBlur = 0;
       }
 
-      // Feed audio data to the immersive background engine
       if (window.bgEffect) {
         window.bgEffect.setAudioData(state.dataArray);
         const average = state.dataArray.reduce((a, b) => a + b) / state.dataArray.length;
@@ -371,8 +484,11 @@
         document.documentElement.style.setProperty('--glow-opacity', 0.1 + (average / 255) * 0.4);
       }
     }
-
     draw();
+  }
+
+  function escapeHtml(text) {
+    return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // Exposed to global for interaction sounds later
@@ -385,7 +501,18 @@
     playModal: () => { sounds.modal.currentTime = 0; sounds.modal.play(); }
   };
 
-  // Initialize
-  init();
+  // ── Register Module Logic ──
+  window.Dashboard.registerModuleLogic('music', {
+    onInit: (panel) => {
+      init(panel);
+    },
+    onActivate: () => {
+      resizeVisualizers();
+      if (state.isPlaying) startVisualizer();
+    },
+    onDeactivate: () => {
+      if (state.animationId) cancelAnimationFrame(state.animationId);
+    }
+  });
 
 })();

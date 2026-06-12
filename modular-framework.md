@@ -94,6 +94,16 @@ You can reference this schema in your workspace to enable automatic IDE linting 
       "type": "string",
       "description": "Path to the JavaScript controller file relative to the module folder root (typically 'script.js')."
     },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of module IDs that must be loaded before this module."
+    },
+    "useShadowDOM": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, the module view will be encapsulated in a Shadow Root for CSS/DOM isolation."
+    },
     "speechCommands": {
       "type": "array",
       "description": "Speech command intents that hook into the global audio/voice controls.",

@@ -15,16 +15,36 @@
     csrfToken: '',
     agents: new Map(),
     modules: [],
+    moduleLogics: new Map(), // Map<moduleId, {onInit, onActivate, onDeactivate}>
     activeModuleId: null,
     currentUser: null,
     settingsTabs: [],
+    
+    registerModuleLogic(id, logic) {
+      this.moduleLogics.set(id, logic);
+      // If module is already active, trigger onActivate immediately
+      if (this.activeModuleId === id && logic.onActivate) {
+        try { logic.onActivate(); } catch (e) { console.error(`[Lifecycle] ${id} onActivate failed:`, e); }
+      }
+    },
+
     registerSettingsTab(tabSpec) {
       this.settingsTabs.push(tabSpec);
       document.dispatchEvent(new CustomEvent('dashboard:settings-tab-registered', { detail: tabSpec }));
     },
+
     showView(id) {
+      const prevModuleId = this.activeModuleId;
       const targetModule = this.modules.find(m => m.id === id);
       if (!targetModule) return;
+
+      // Lifecycle: Deactivate previous
+      if (prevModuleId && prevModuleId !== id) {
+        const prevLogic = this.moduleLogics.get(prevModuleId);
+        if (prevLogic && prevLogic.onDeactivate) {
+          try { prevLogic.onDeactivate(); } catch (e) { console.error(`[Lifecycle] ${prevModuleId} onDeactivate failed:`, e); }
+        }
+      }
 
       this.activeModuleId = id;
 
@@ -70,6 +90,12 @@
         } else if (id === 'terminal') {
           window.bgEffect.setHue(145); // Emerald/Green terminal theme
         }
+      }
+
+      // Lifecycle: Activate new
+      const targetLogic = this.moduleLogics.get(id);
+      if (targetLogic && targetLogic.onActivate) {
+        try { targetLogic.onActivate(); } catch (e) { console.error(`[Lifecycle] ${id} onActivate failed:`, e); }
       }
 
       // Dispatch a view changed event
@@ -206,14 +232,16 @@
     try {
       const response = await fetch('/api/modules');
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const modules = await response.json();
+      const rawModules = await response.json();
       
+      // Sort modules by dependencies
+      const modules = sortModulesByDependencies(rawModules);
       window.Dashboard.modules = modules;
 
       const viewContainer = document.getElementById('views-container');
 
       for (const module of modules) {
-        // 1. Inject Stylesheet
+        // 1. Inject Stylesheet (Standard way for now, Shadow DOM handled later if enabled)
         if (module.css) {
           const link = document.createElement('link');
           link.rel = 'stylesheet';
@@ -227,11 +255,34 @@
           panel.className = 'view-panel main-view hidden';
           panel.id = `view-${module.id}`;
           
+          let targetContainer = panel;
+
+          // 11/10: Shadow DOM Isolation
+          if (module.useShadowDOM) {
+            const shadow = panel.attachShadow({ mode: 'open' });
+            
+            // Inject module styles into shadow root
+            if (module.css) {
+              const link = document.createElement('link');
+              link.rel = 'stylesheet';
+              link.href = module.css;
+              shadow.appendChild(link);
+            }
+            
+            // Inject global theme variables
+            const themeLink = document.createElement('link');
+            themeLink.rel = 'stylesheet';
+            themeLink.href = 'css/style.css'; 
+            shadow.appendChild(themeLink);
+
+            targetContainer = shadow;
+          }
+
           try {
             const parser = new DOMParser();
             const doc = parser.parseFromString(module.htmlContent, 'text/html');
             while (doc.body.firstChild) {
-              panel.appendChild(doc.body.firstChild);
+              targetContainer.appendChild(doc.body.firstChild);
             }
           } catch (err) {
             console.error(`[Dashboard] Failed to parse HTML content for module ${module.id}:`, err);
@@ -265,7 +316,20 @@
             const script = document.createElement('script');
             script.src = module.js;
             script.async = false;
-            script.onload = () => resolve();
+            script.onload = () => {
+              // Lifecycle: onInit
+              const logic = window.Dashboard.moduleLogics.get(module.id);
+              if (logic && logic.onInit) {
+                try {
+                  const panel = document.getElementById(`view-${module.id}`);
+                  const targetPanel = module.useShadowDOM ? panel.shadowRoot : panel;
+                  logic.onInit(targetPanel);
+                } catch (e) {
+                  console.error(`[Lifecycle] ${module.id} onInit failed:`, e);
+                }
+              }
+              resolve();
+            };
             script.onerror = (e) => {
               console.error(`[Dashboard] Failed to load script for module ${module.id}:`, e);
               resolve();
@@ -284,6 +348,39 @@
     } catch (err) {
       console.error('[Dashboard] Error during module initialization:', err);
     }
+  }
+
+  function sortModulesByDependencies(modules) {
+    const sorted = [];
+    const visited = new Set();
+    const visiting = new Set();
+
+    function visit(mod) {
+      if (visiting.has(mod.id)) {
+        console.warn(`[Modules] Circular dependency detected in ${mod.id}`);
+        return;
+      }
+      if (visited.has(mod.id)) return;
+
+      visiting.add(mod.id);
+      
+      const deps = mod.dependencies || [];
+      deps.forEach(depId => {
+        const depMod = modules.find(m => m.id === depId);
+        if (depMod) {
+          visit(depMod);
+        } else {
+          console.warn(`[Modules] Dependency ${depId} not found for module ${mod.id}`);
+        }
+      });
+
+      visiting.delete(mod.id);
+      visited.add(mod.id);
+      sorted.push(mod);
+    }
+
+    modules.forEach(m => visit(m));
+    return sorted;
   }
 
   // ── Authentication Check & Guard ──
