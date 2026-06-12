@@ -848,8 +848,18 @@
 
           try {
             if (prov === 'ollama') {
-              const resp = await fetch(`${host.replace(/\/+$/, '')}/api/tags`);
-              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              const resp = await fetch('/api/llm/proxy/ollama-tags', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Token': window.Dashboard.csrfToken
+                },
+                body: JSON.stringify({ host: host })
+              });
+              if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP ${resp.status}`);
+              }
               const data = await resp.json();
               const models = (data.models || []).map(m => m.name);
               
@@ -872,27 +882,21 @@
                 if (models.includes(cur)) ollamaModelSel.value = cur;
               }
             } else if (prov === 'lm-studio' || prov === 'openai-compatible') {
-              const resp = await fetch(`${host.replace(/\/+$/, '')}/chat/completions`, {
+              // Use backend proxy to avoid CORS issues with local LLM hosts
+              const resp = await fetch('/api/llm/proxy/models', {
                 method: 'POST',
                 headers: { 
-                  'Content-Type': 'application/json', 
-                  ...(key ? { 'Authorization': `Bearer ${key}` } : {}) 
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Token': window.Dashboard.csrfToken
                 },
-                body: JSON.stringify({ 
-                  model: model || 'local-model', 
-                  messages: [
-                    { role: 'system', content: 'Connection test.' },
-                    { role: 'user', content: 'ping' }
-                  ], 
-                  max_tokens: 10,
-                  stream: false
-                })
+                body: JSON.stringify({ host: host, key: key })
               });
               if (!resp.ok) {
                 const errData = await resp.json().catch(() => ({}));
-                throw new Error(errData.error?.message || `HTTP ${resp.status}`);
+                throw new Error(errData.error || `HTTP ${resp.status}`);
               }
-              resultEl.textContent = '✅ Connected successfully';
+              const data = await resp.json();
+              resultEl.textContent = `✅ Connected (${data.data?.length || 0} models)`;
               resultEl.className = 'save-status-msg success';
             }
           } catch (err) {

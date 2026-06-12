@@ -877,35 +877,79 @@ app.get('/api/modules', (req, res) => {
 
     // REST API — discover available themes
     app.get('/api/themes', (req, res) => {
-    const themesDir = path.join(__dirname, '..', 'public', 'themes');
-    try {
-    if (!fs.existsSync(themesDir)) {
-      return res.json([]);
-    }
-    const dirs = fs.readdirSync(themesDir);
-    const themes = [];
-
-    dirs.forEach(dir => {
-      const dirPath = path.join(themesDir, dir);
-      const manifestPath = path.join(dirPath, 'manifest.json');
-
-      if (fs.statSync(dirPath).isDirectory() && fs.existsSync(manifestPath)) {
-        try {
-          const manifestContent = fs.readFileSync(manifestPath, 'utf8');
-          const manifest = JSON.parse(manifestContent);
-          manifest.path = `/themes/${dir}/theme.css`;
-          themes.push(manifest);
-        } catch (e) {
-          console.error(`[Themes] Failed to parse manifest for theme ${dir}:`, e.message);
+      const themesDir = path.join(__dirname, '..', 'public', 'themes');
+      try {
+        if (!fs.existsSync(themesDir)) {
+          return res.json([]);
         }
+        const dirs = fs.readdirSync(themesDir);
+        const themes = [];
+
+        dirs.forEach(dir => {
+          const dirPath = path.join(themesDir, dir);
+          const manifestPath = path.join(dirPath, 'manifest.json');
+
+          if (fs.statSync(dirPath).isDirectory() && fs.existsSync(manifestPath)) {
+            try {
+              const manifestContent = fs.readFileSync(manifestPath, 'utf8');
+              const manifest = JSON.parse(manifestContent);
+              manifest.path = `/themes/${dir}/theme.css`;
+              themes.push(manifest);
+            } catch (e) {
+              console.error(`[Themes] Failed to parse manifest for theme ${dir}:`, e.message);
+            }
+          }
+        });
+
+        res.json(themes);
+      } catch (err) {
+        console.error('[Themes] Error scanning themes:', err);
+        res.status(500).json({ error: 'Failed to list themes' });
       }
     });
 
-    res.json(themes);
-    } catch (err) {
-    console.error('[Themes] Error scanning themes:', err);
-    res.status(500).json({ error: 'Failed to list themes' });
-    }
+    // REST API — proxy for LLM connection testing (avoids CORS issues)
+    app.post('/api/llm/proxy/models', async (req, res) => {
+      const { host, key } = req.body;
+      if (!host) return res.status(400).json({ error: 'Host URL is required' });
+
+      try {
+        const url = `${host.replace(/\/+$/, '')}/models`;
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            ...(key ? { 'Authorization': `Bearer ${key}` } : {})
+          }
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          return res.status(response.status).send(errText);
+        }
+
+        const data = await response.json();
+        res.json(data);
+      } catch (err) {
+        console.error('[LLM Proxy] Connection failed:', err.message);
+        res.status(500).json({ error: `Connection failed: ${err.message}` });
+      }
+    });
+
+    app.post('/api/llm/proxy/ollama-tags', async (req, res) => {
+      const { host } = req.body;
+      if (!host) return res.status(400).json({ error: 'Host URL is required' });
+
+      try {
+        const url = `${host.replace(/\/+$/, '')}/api/tags`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        res.json(data);
+      } catch (err) {
+        console.error('[Ollama Proxy] Connection failed:', err.message);
+        res.status(500).json({ error: `Connection failed: ${err.message}` });
+      }
     });
 
 // REST API — save user sidebar modules order preference
