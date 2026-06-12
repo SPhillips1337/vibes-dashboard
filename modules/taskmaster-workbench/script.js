@@ -415,8 +415,12 @@
   }
 
   function selectTask(taskId) {
+    const changed = state.selectedId !== taskId;
     state.selectedId = taskId;
     renderAll('Task selected');
+    if (changed && els.detail) {
+      els.detail.scrollTop = 0;
+    }
   }
 
   function cycleTaskStatus(taskId) {
