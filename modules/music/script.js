@@ -233,7 +233,7 @@
   async function searchMusic(query) {
     if (!query.trim()) return;
     const resultsEl = viewPanel.querySelector('#discovery-results');
-    resultsEl.innerHTML = '<div class="empty-discovery">Searching iTunes...</div>';
+    resultsEl.innerHTML = '<div class="empty-discovery">Searching Jamendo...</div>';
 
     try {
       const response = await fetch(`/api/music/search?q=${encodeURIComponent(query)}`);
@@ -251,7 +251,7 @@
             </div>
             <div class="discovery-item-actions">
               <button class="action-btn preview-btn" data-url="${hit.audio}">Preview</button>
-              <button class="action-btn primary download-btn" data-id="${hit.id}" data-url="${hit.audio}" data-tags="${hit.tags}">Add to Library</button>
+              <button class="action-btn primary download-btn" data-id="${hit.id}" data-url="${hit.audio}" data-tags="${hit.tags}" data-artist="${escapeHtml(hit.user)}">Save to Library</button>
             </div>
           `;
           resultsEl.appendChild(item);
@@ -272,7 +272,7 @@
         resultsEl.querySelectorAll('.download-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             btn.disabled = true;
-            btn.textContent = 'Adding...';
+            btn.textContent = 'Saving...';
             try {
               const res = await fetch('/api/music/download', {
                 method: 'POST',
@@ -283,18 +283,19 @@
                 body: JSON.stringify({ 
                   url: btn.dataset.url, 
                   id: btn.dataset.id,
-                  tags: btn.dataset.tags
+                  tags: btn.dataset.tags,
+                  artist: btn.dataset.artist
                 })
               });
               const result = await res.json();
               if (result.success) {
-                btn.textContent = 'Added!';
+                btn.textContent = 'Saved!';
                 fetchPlaylist(); // Refresh library
               } else {
                 throw new Error(result.error);
               }
             } catch (e) {
-              console.error('Download failed:', e);
+              console.error('Save failed:', e);
               btn.textContent = 'Failed';
               btn.disabled = false;
             }

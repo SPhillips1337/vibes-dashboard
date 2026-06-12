@@ -380,30 +380,44 @@ app.get('/api/agents', (req, res) => {
 // ── Audio API ──
 app.get('/api/audio', (req, res) => {
   const audioDir = path.join(__dirname, '..', 'public', 'audio');
+  let tracks = [];
   try {
-    if (!fs.existsSync(audioDir)) {
-      return res.json([]);
+    if (fs.existsSync(audioDir)) {
+      const files = fs.readdirSync(audioDir);
+      tracks = files
+        .filter(f => f.endsWith('.mp3'))
+        .map(f => {
+          // Filename format: artist-title-id.mp3
+          const parts = f.replace('.mp3', '').split('-');
+          let artist = 'Vibe Artist';
+          let name = parts[0];
+
+          if (parts.length >= 2) {
+            artist = parts[0].replace(/([A-Z])/g, ' $1').trim();
+            name = parts.slice(1, -1).join(' ').replace(/\b\w/g, l => l.toUpperCase());
+          }
+
+          return {
+            name: name || f,
+            artist: artist,
+            url: `/audio/${f}`
+          };
+        });
     }
-    const files = fs.readdirSync(audioDir);
-    const tracks = files
-      .filter(f => f.endsWith('.mp3'))
-      .map(f => {
-        // Filename format: artist-title-id.mp3
-        const parts = f.replace('.mp3', '').split('-');
-        let artist = 'Vibe Artist';
-        let name = parts[0];
 
-        if (parts.length >= 2) {
-          artist = parts[0].replace(/([A-Z])/g, ' $1').trim();
-          name = parts.slice(1, -1).join(' ').replace(/\b\w/g, l => l.toUpperCase());
+    // Merge with virtual/saved streaming tracks
+    const playlistPath = path.join(__dirname, '..', 'data', 'music', 'saved_playlist.json');
+    if (fs.existsSync(playlistPath)) {
+      try {
+        const savedTracks = JSON.parse(fs.readFileSync(playlistPath, 'utf8'));
+        if (Array.isArray(savedTracks)) {
+          tracks = [...tracks, ...savedTracks];
         }
+      } catch (err) {
+        console.warn('[Music] Error loading saved playlist:', err.message);
+      }
+    }
 
-        return {
-          name: name || f,
-          artist: artist,
-          url: `/audio/${f}`
-        };
-      });
     res.json(tracks);
   } catch (err) {
     console.error('Error reading audio directory:', err);
@@ -411,50 +425,68 @@ app.get('/api/audio', (req, res) => {
   }
 });
 
-// ── iTunes Music Discovery API ──
+// ── Jamendo Music Discovery API ──
 app.get('/api/music/search', async (req, res) => {
   const query = req.query.q || '';
 
   try {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=15`;
+    const url = `https://api.jamendo.com/v3.0/tracks/?client_id=3dce8b55&format=json&limit=15&namesearch=${encodeURIComponent(query)}`;
     const response = await fetch(url);
     const data = await response.json();
     
-    // Map iTunes to the Pixabay-like format the frontend expects
-    const hits = data.results.map(r => ({
-      id: r.trackId,
-      tags: r.trackName,
-      user: r.artistName,
-      duration: Math.round(r.trackTimeMillis / 1000),
-      audio: r.previewUrl
-    })).filter(h => h.audio); // Only keep results with a preview
+    // Map Jamendo to the format the frontend expects
+    const hits = (data.results || []).map(r => ({
+      id: r.id,
+      tags: r.name,
+      user: r.artist_name,
+      duration: r.duration,
+      audio: r.audio
+    })).filter(h => h.audio); // Only keep results with an audio stream URL
 
     res.json({ hits });
   } catch (err) {
-    console.error('[iTunes] Search failed:', err);
-    res.status(500).json({ error: 'Failed to search iTunes' });
+    console.error('[Jamendo] Search failed:', err);
+    res.status(500).json({ error: 'Failed to search Jamendo' });
   }
 });
 
 app.post('/api/music/download', async (req, res) => {
-  const { url, id, tags } = req.body;
+  const { url, id, tags, artist } = req.body;
   if (!url) return res.status(400).json({ error: 'Missing track URL' });
 
-  const audioDir = path.join(__dirname, '..', 'public', 'audio');
-  if (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });
-
-  const fileName = `${tags.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}-${id}.mp3`;
-  const filePath = path.join(audioDir, fileName);
+  const musicDataDir = path.join(__dirname, '..', 'data', 'music');
+  const playlistPath = path.join(musicDataDir, 'saved_playlist.json');
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
-    res.json({ success: true, fileName });
+    if (!fs.existsSync(musicDataDir)) {
+      fs.mkdirSync(musicDataDir, { recursive: true });
+    }
+
+    let savedTracks = [];
+    if (fs.existsSync(playlistPath)) {
+      try {
+        savedTracks = JSON.parse(fs.readFileSync(playlistPath, 'utf8'));
+      } catch (err) {
+        console.warn('[Music] Error reading saved playlist, resetting:', err.message);
+      }
+    }
+
+    // Check if duplicate track exists
+    const exists = savedTracks.some(t => t.url === url || t.id === id);
+    if (!exists) {
+      savedTracks.push({
+        id: id || Date.now().toString(),
+        name: tags || 'Untitled Track',
+        artist: artist || 'iTunes Discover',
+        url: url
+      });
+      fs.writeFileSync(playlistPath, JSON.stringify(savedTracks, null, 2), 'utf8');
+    }
+
+    res.json({ success: true });
   } catch (err) {
-    console.error('[Music] Download failed:', err);
-    res.status(500).json({ error: 'Failed to download track' });
+    console.error('[Music] Saving track failed:', err);
+    res.status(500).json({ error: 'Failed to save track to library' });
   }
 });
 
