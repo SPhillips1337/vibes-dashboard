@@ -411,6 +411,70 @@ app.get('/api/audio', (req, res) => {
   }
 });
 
+// ── Pixabay Music Discovery API ──
+app.get('/api/music/search', async (req, res) => {
+  const query = req.query.q || '';
+  const settingsPath = path.join(__dirname, '..', 'settings.json');
+  let pixabayKey = process.env.PIXABAY_KEY;
+
+  if (!pixabayKey && fs.existsSync(settingsPath)) {
+    try {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      pixabayKey = settings['vibes-general-prefs']?.pixabayKey;
+    } catch (e) {}
+  }
+
+  if (!pixabayKey) {
+    // Return empty results or error if no key
+    return res.status(400).json({ error: 'Pixabay API Key not configured in settings.' });
+  }
+
+  try {
+    const url = `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&order=popular`;
+    const response = await fetch(url);
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error('[Pixabay] Search failed:', err);
+    res.status(500).json({ error: 'Failed to search Pixabay' });
+  }
+});
+
+app.post('/api/music/download', async (req, res) => {
+  const { url, id, tags } = req.body;
+  if (!url) return res.status(400).json({ error: 'Missing track URL' });
+
+  const audioDir = path.join(__dirname, '..', 'public', 'audio');
+  if (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });
+
+  const fileName = `${tags.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}-${id}.mp3`;
+  const filePath = path.join(audioDir, fileName);
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const arrayBuffer = await response.arrayBuffer();
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    res.json({ success: true, fileName });
+  } catch (err) {
+    console.error('[Music] Download failed:', err);
+    res.status(500).json({ error: 'Failed to download track' });
+  }
+});
+
+app.get('/api/music/download-all', (req, res) => {
+  const audioDir = path.join(__dirname, '..', 'public', 'audio');
+  if (!fs.existsSync(audioDir)) return res.status(404).json({ error: 'No audio found' });
+
+  const { spawn } = require('child_process');
+  res.setHeader('Content-Disposition', 'attachment; filename="vibes-playlist.zip"');
+  res.setHeader('Content-Type', 'application/zip');
+
+  const zip = spawn('zip', ['-r', '-', '.'], { cwd: audioDir });
+  zip.stdout.pipe(res);
+  zip.stderr.on('data', (data) => console.error(`[Zip] Error: ${data}`));
+});
+
 // REST API — agent status via Vibes bridge
 app.get('/api/agents/:id/status', async (req, res) => {
   const status = await vibesBridge.queryStatus(req.params.id);

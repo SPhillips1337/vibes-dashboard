@@ -8,6 +8,8 @@
   const state = {
     currentIndex: 0,
     isPlaying: false,
+    isShuffle: false,
+    isRepeat: false,
     audioContext: null,
     analyser: null,
     source: null,
@@ -17,7 +19,7 @@
 
   // ── DOM ──
   let visualizerCanvas, miniCanvas, vCtx, mCtx;
-  let btnPlayPause, btnPrev, btnNext, volSlider, trackName, trackArtist, playlistEl;
+  let btnPlayPause, btnPrev, btnNext, btnShuffle, btnRepeat, volSlider, trackName, trackArtist, playlistEl;
   let playIcon, pauseIcon;
 
   // Sound Effects (Disabled due to external 403 errors)
@@ -43,6 +45,8 @@
     btnPlayPause = document.getElementById('btn-play-pause');
     btnPrev = document.getElementById('btn-prev');
     btnNext = document.getElementById('btn-next');
+    btnShuffle = document.getElementById('btn-shuffle');
+    btnRepeat = document.getElementById('btn-repeat');
     volSlider = document.getElementById('volume-slider');
     trackName = document.getElementById('track-name');
     trackArtist = document.getElementById('track-artist');
@@ -51,16 +55,43 @@
     playIcon = document.getElementById('play-icon');
     pauseIcon = document.getElementById('pause-icon');
 
+    // Tabs
+    const tabBtns = document.querySelectorAll('.music-tab-btn');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        switchTab(tabId);
+      });
+    });
+
+    // Search
+    const searchBtn = document.getElementById('btn-music-search');
+    const searchInput = document.getElementById('music-search-input');
+    if (searchBtn && searchInput) {
+      searchBtn.addEventListener('click', () => searchMusic(searchInput.value));
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') searchMusic(searchInput.value);
+      });
+    }
+
+    // Download playlist
+    const downloadBtn = document.getElementById('btn-download-playlist');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', downloadFullPlaylist);
+    }
+
     // Controls
     btnPlayPause.addEventListener('click', togglePlay);
     btnNext.addEventListener('click', nextTrack);
     btnPrev.addEventListener('click', prevTrack);
+    btnShuffle.addEventListener('click', toggleShuffle);
+    btnRepeat.addEventListener('click', toggleRepeat);
     volSlider.addEventListener('input', (e) => {
       audio.volume = e.target.value;
     });
 
     // Audio Events
-    audio.addEventListener('ended', nextTrack);
+    audio.addEventListener('ended', handleTrackEnd);
 
     // Resize visualizer
     window.addEventListener('resize', resizeVisualizers);
@@ -76,156 +107,145 @@
     fetchPlaylist();
   }
 
-  async function fetchPlaylist() {
-    try {
-      const response = await fetch('/api/audio');
-      PLAYLIST = await response.json();
+  function switchTab(tabId) {
+    document.querySelectorAll('.music-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabId);
+    });
+    document.querySelectorAll('.music-tab-content').forEach(content => {
+      content.classList.toggle('hidden', content.id !== `music-tab-${tabId}`);
+    });
+    if (window.vibePlayer) window.vibePlayer.playClick();
+  }
 
-      if (PLAYLIST.length > 0) {
-        renderPlaylist();
-        loadTrack(0);
+  async function searchMusic(query) {
+    if (!query.trim()) return;
+    const resultsEl = document.getElementById('discovery-results');
+    resultsEl.innerHTML = '<div class="empty-discovery">Searching Pixabay...</div>';
+
+    try {
+      const response = await fetch(`/api/music/search?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+
+      if (data.hits && data.hits.length > 0) {
+        resultsEl.innerHTML = '';
+        data.hits.forEach(hit => {
+          const item = document.createElement('div');
+          item.className = 'discovery-item';
+          item.innerHTML = `
+            <div class="discovery-item-info">
+              <h4>${escapeHtml(hit.tags || 'Untitled Track')}</h4>
+              <p>Duration: ${hit.duration}s · ${hit.user}</p>
+            </div>
+            <div class="discovery-item-actions">
+              <button class="action-btn preview-btn" data-url="${hit.audio}">Preview</button>
+              <button class="action-btn primary download-btn" data-id="${hit.id}" data-url="${hit.audio}" data-tags="${hit.tags}">Add to Library</button>
+            </div>
+          `;
+          resultsEl.appendChild(item);
+        });
+
+        resultsEl.querySelectorAll('.preview-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const url = btn.dataset.url;
+            if (audio.src === url && !audio.paused) {
+              pauseTrack();
+            } else {
+              audio.src = url;
+              playTrack();
+            }
+          });
+        });
+
+        resultsEl.querySelectorAll('.download-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            btn.textContent = 'Adding...';
+            try {
+              const res = await fetch('/api/music/download', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Token': window.Dashboard.csrfToken
+                },
+                body: JSON.stringify({ 
+                  url: btn.dataset.url, 
+                  id: btn.dataset.id,
+                  tags: btn.dataset.tags
+                })
+              });
+              const result = await res.json();
+              if (result.success) {
+                btn.textContent = 'Added!';
+                fetchPlaylist(); // Refresh library
+              } else {
+                throw new Error(result.error);
+              }
+            } catch (e) {
+              console.error('Download failed:', e);
+              btn.textContent = 'Failed';
+              btn.disabled = false;
+            }
+          });
+        });
       } else {
-        trackName.textContent = 'No Audio Found';
-        trackArtist.textContent = 'Add MP3s to public/audio';
+        resultsEl.innerHTML = '<div class="empty-discovery">No results found.</div>';
       }
     } catch (e) {
-      console.error('[Music] Failed to load playlist:', e);
+      console.error('Search failed:', e);
+      resultsEl.innerHTML = '<div class="empty-discovery">Error connecting to discovery service.</div>';
     }
   }
 
-  function resizeVisualizers() {
-    if (!visualizerCanvas) return;
-    const rect = visualizerCanvas.parentElement.getBoundingClientRect();
-    visualizerCanvas.width = rect.width || 300;
-    visualizerCanvas.height = rect.height || 300;
-
-    const mainCanvas = document.getElementById('main-visualizer');
-    if (mainCanvas && mainCanvas.parentElement) {
-      const mainRect = mainCanvas.parentElement.getBoundingClientRect();
-      mainCanvas.width = mainRect.width || window.innerWidth;
-      mainCanvas.height = mainRect.height || window.innerHeight;
-    }
+  function downloadFullPlaylist() {
+    // Create a zip or just trigger downloads? 
+    // Usually browser allows one download per trigger without permission issues.
+    // We'll just alert for now or implement a backend zip endpoint.
+    window.location.href = '/api/music/download-all';
   }
 
-  function renderPlaylist() {
-    if (!playlistEl) return;
-    playlistEl.replaceChildren();
-    
-    PLAYLIST.forEach((track, i) => {
-      const item = document.createElement('div');
-      item.className = `playlist-item ${i === state.currentIndex ? 'active' : ''}`;
-      
-      const idxDiv = document.createElement('div');
-      idxDiv.className = 'item-index';
-      idxDiv.textContent = (i + 1).toString().padStart(2, '0');
-      item.appendChild(idxDiv);
-
-      const infoDiv = document.createElement('div');
-      infoDiv.className = 'item-info';
-      
-      const nameDiv = document.createElement('div');
-      nameDiv.className = 'item-name';
-      nameDiv.textContent = track.name;
-      infoDiv.appendChild(nameDiv);
-
-      const artistDiv = document.createElement('div');
-      artistDiv.className = 'item-artist';
-      artistDiv.textContent = track.artist;
-      infoDiv.appendChild(artistDiv);
-
-      item.appendChild(infoDiv);
-      
-      item.addEventListener('click', () => loadTrack(i, true));
-      playlistEl.appendChild(item);
-    });
-  }
-
-  function loadTrack(index, autoPlay = false) {
-    state.currentIndex = index;
-    const track = PLAYLIST[index];
-    if (!track) return;
-    
-    audio.src = track.url;
-    trackName.textContent = track.name;
-    trackArtist.textContent = track.artist;
-
-    // Update active class
-    document.querySelectorAll('.playlist-item').forEach((item, i) => {
-      item.classList.toggle('active', i === index);
-    });
-
-    // Auto-map visualizer background mode to track names/themes
-    if (window.bgEffect && track.name) {
-      const name = track.name.toLowerCase();
-      if (name.includes('cyber') || name.includes('synth') || name.includes('neon') || name.includes('grid')) {
-        window.bgEffect.setMode('Cyber Stream');
-      } else if (name.includes('fire') || name.includes('ember') || name.includes('flame') || name.includes('heat')) {
-        window.bgEffect.setMode('Ember Storm');
-      } else if (name.includes('void') || name.includes('singularity') || name.includes('black hole') || name.includes('gargantua') || name.includes('space') || name.includes('gravity')) {
-        window.bgEffect.setMode('Gargantua Singularity');
-      } else if (name.includes('aurora') || name.includes('wave') || name.includes('flow') || name.includes('ambient') || name.includes('chill') || name.includes('dream') || name.includes('sky')) {
-        window.bgEffect.setMode('Aurora Waves');
-      } else if (name.includes('lightning') || name.includes('electricity') || name.includes('thunder') || name.includes('volt') || name.includes('storm')) {
-        window.bgEffect.setMode('Electrical Storm');
-      } else if (name.includes('gear') || name.includes('clock') || name.includes('kinetic') || name.includes('mechanism') || name.includes('time') || name.includes('machine')) {
-        window.bgEffect.setMode('Kinetic Clockwork');
-      } else {
-        window.bgEffect.setMode('Nebula Flow');
-      }
-
-      // Update UI mode selector label if it exists in the DOM
-      const vizModeLabel = document.getElementById('viz-mode-label');
-      if (vizModeLabel) {
-        vizModeLabel.textContent = window.bgEffect.getCurrentModeName();
-        vizModeLabel.classList.add('flash');
-        setTimeout(() => { vizModeLabel.classList.remove('flash'); }, 600);
-      }
-    }
-
-    if (autoPlay) {
-      playTrack();
-    }
-  }
-
-  function togglePlay() {
-    if (state.isPlaying) {
-      pauseTrack();
+  function handleTrackEnd() {
+    if (state.isRepeat) {
+      loadTrack(state.currentIndex, true);
     } else {
-      playTrack();
+      nextTrack();
     }
   }
 
-  async function playTrack() {
-    // Resume AudioContext if suspended
-    if (!state.audioContext) {
-      setupAudioContext();
-    } else if (state.audioContext.state === 'suspended') {
-      await state.audioContext.resume();
-    }
-
-    audio.play();
-    state.isPlaying = true;
-    if (playIcon) playIcon.classList.add('hidden');
-    if (pauseIcon) pauseIcon.classList.remove('hidden');
-    startVisualizer();
+  function toggleShuffle() {
+    state.isShuffle = !state.isShuffle;
+    btnShuffle.classList.toggle('active', state.isShuffle);
+    if (window.vibePlayer) window.vibePlayer.playClick();
   }
 
-  function pauseTrack() {
-    audio.pause();
-    state.isPlaying = false;
-    if (playIcon) playIcon.classList.remove('hidden');
-    if (pauseIcon) pauseIcon.classList.add('hidden');
+  function toggleRepeat() {
+    state.isRepeat = !state.isRepeat;
+    btnRepeat.classList.toggle('active', state.isRepeat);
+    if (window.vibePlayer) window.vibePlayer.playClick();
   }
 
   function nextTrack() {
-    let index = state.currentIndex + 1;
-    if (index >= PLAYLIST.length) index = 0;
+    let index;
+    if (state.isShuffle) {
+      index = Math.floor(Math.random() * PLAYLIST.length);
+      // Ensure we don't play the same track again if possible
+      if (index === state.currentIndex && PLAYLIST.length > 1) {
+        index = (index + 1) % PLAYLIST.length;
+      }
+    } else {
+      index = state.currentIndex + 1;
+      if (index >= PLAYLIST.length) index = 0;
+    }
     loadTrack(index, true);
   }
 
   function prevTrack() {
-    let index = state.currentIndex - 1;
-    if (index < 0) index = PLAYLIST.length - 1;
+    let index;
+    if (state.isShuffle) {
+      index = Math.floor(Math.random() * PLAYLIST.length);
+    } else {
+      index = state.currentIndex - 1;
+      if (index < 0) index = PLAYLIST.length - 1;
+    }
     loadTrack(index, true);
   }
 
