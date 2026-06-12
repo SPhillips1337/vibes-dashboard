@@ -277,7 +277,18 @@
           <h3 class="settings-section-title">UI Customization</h3>
           <div class="settings-row">
             <div class="settings-info">
-              <span class="settings-label">Color Theme</span>
+              <span class="settings-label">Active Theme Pack</span>
+              <span class="settings-desc">Choose a modular dashboard skin from your themes directory</span>
+            </div>
+            <div class="settings-field">
+              <select id="setting-theme-id">
+                <option value="default">Default Vibes</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-label">Color Mode</span>
               <span class="settings-desc">Choose between deep dark cybernetic or high-visibility light mode</span>
             </div>
             <div class="settings-field">
@@ -321,7 +332,21 @@
           </div>
         </div>
       `,onLoad: (panel) => {
-        const prefs = loadPrefs('vibes-general-prefs', { autoLaunchOnCommand: true, wakeWordEnabled: false, theme: 'dark', pixabayKey: '' });
+        const prefs = loadPrefs('vibes-general-prefs', { autoLaunchOnCommand: true, wakeWordEnabled: false, theme: 'dark', themeId: 'default', pixabayKey: '' });
+        
+        // Populate Theme Packs
+        const themeSelect = panel.querySelector('#setting-theme-id');
+        if (themeSelect && window.Dashboard.themes) {
+          themeSelect.replaceChildren();
+          window.Dashboard.themes.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.name;
+            themeSelect.appendChild(opt);
+          });
+          themeSelect.value = prefs.themeId || 'default';
+        }
+
         panel.querySelector('#setting-theme').value = prefs.theme;
         panel.querySelector('#setting-autolaunch-toggle').classList.toggle('active', prefs.autoLaunchOnCommand);
         panel.querySelector('#setting-wakeword-toggle').classList.toggle('active', prefs.wakeWordEnabled);
@@ -336,14 +361,20 @@
       },
       onSave: (panel) => {
         const theme = panel.querySelector('#setting-theme').value;
+        const themeId = panel.querySelector('#setting-theme-id').value;
         const autoLaunchOnCommand = panel.querySelector('#setting-autolaunch-toggle').classList.contains('active');
         const wakeWordEnabled = panel.querySelector('#setting-wakeword-toggle').classList.contains('active');
         const pixabayKey = panel.querySelector('#setting-pixabay-key').value;
 
+        // Apply theme immediately
+        if (window.Dashboard && window.Dashboard.setTheme) {
+          window.Dashboard.setTheme(themeId);
+        }
+
         return {
           key: 'vibes-general-prefs',
-          data: { autoLaunchOnCommand, wakeWordEnabled, theme, pixabayKey },
-          additionalKeys: { 'vibes-theme': theme }
+          data: { autoLaunchOnCommand, wakeWordEnabled, theme, themeId, pixabayKey },
+          additionalKeys: { 'vibes-theme': theme, 'vibes-theme-id': themeId }
         };
       }
     };

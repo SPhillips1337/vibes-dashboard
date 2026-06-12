@@ -473,9 +473,99 @@
     console.log(`[Dashboard] Session established securely for user: ${user.username} (${user.role})`);
   }
 
+  // ── Theme Management ──
+  window.Dashboard.themes = [];
+  
+  async function fetchThemes() {
+    try {
+      const resp = await fetch('/api/themes');
+      window.Dashboard.themes = await resp.json();
+      document.dispatchEvent(new CustomEvent('dashboard:themes-loaded', { detail: window.Dashboard.themes }));
+    } catch(e) {
+      console.warn('[Themes] Failed to load themes:', e);
+    }
+  }
+
+  function setupThemeToggle() {
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    const themeLink = document.getElementById('theme-link');
+    const sunIcon = document.querySelector('.sun-icon');
+    const moonIcon = document.querySelector('.moon-icon');
+
+    function applyThemeUI(mode) {
+      if (mode === 'light') {
+        document.body.classList.add('light-mode');
+        if (sunIcon) sunIcon.classList.add('hidden');
+        if (moonIcon) moonIcon.classList.remove('hidden');
+      } else {
+        document.body.classList.remove('light-mode');
+        if (sunIcon) sunIcon.classList.remove('hidden');
+        if (moonIcon) moonIcon.classList.add('hidden');
+      }
+    }
+
+    function applyThemeSheet(themeId) {
+      const theme = window.Dashboard.themes.find(t => t.id === themeId) || { path: 'themes/default/theme.css' };
+      if (themeLink) {
+        themeLink.href = theme.path;
+      }
+    }
+
+    // Initialize UI
+    const currentMode = localStorage.getItem('vibes-theme') || 'dark';
+    const currentThemeId = localStorage.getItem('vibes-theme-id') || 'default';
+    
+    applyThemeUI(currentMode);
+    // Wait for themes to load then apply sheet
+    document.addEventListener('dashboard:themes-loaded', () => {
+      applyThemeSheet(currentThemeId);
+    });
+
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener('click', () => {
+        const isLight = document.body.classList.contains('light-mode');
+        const newMode = isLight ? 'dark' : 'light';
+        applyThemeUI(newMode);
+        localStorage.setItem('vibes-theme', newMode);
+        
+        // Also update general prefs
+        try {
+          const generalPrefs = JSON.parse(localStorage.getItem('vibes-general-prefs') || '{}');
+          generalPrefs.theme = newMode;
+          localStorage.setItem('vibes-general-prefs', JSON.stringify(generalPrefs));
+        } catch(e) {}
+        
+        // Save to server
+        if (window.Dashboard.csrfToken) {
+          fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 'vibes-theme': newMode })
+          }).catch(err => console.error('[Theme] Failed to save mode to server:', err));
+        }
+      });
+    }
+
+    // Global method to switch themes
+    window.Dashboard.setTheme = function(themeId) {
+      localStorage.setItem('vibes-theme-id', themeId);
+      applyThemeSheet(themeId);
+      
+      if (window.Dashboard.csrfToken) {
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 'vibes-theme-id': themeId })
+        }).catch(err => console.error('[Theme] Failed to save theme ID to server:', err));
+      }
+    };
+  }
+
   // Load app on DOM load
   document.addEventListener('DOMContentLoaded', () => {
+    setupThemeToggle();
     checkAuth();
+    fetchThemes();
   });
 
 })();

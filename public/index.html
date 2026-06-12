@@ -11,6 +11,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap"
     rel="stylesheet">
+  <!-- Theme API Layer -->
+  <link id="theme-link" rel="stylesheet" href="themes/default/theme.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -62,6 +64,23 @@
         }
       } catch (e) {
         console.warn('[Settings] Failed to sync settings from server:', e);
+      }
+      
+      // Apply initial theme
+      const initialMode = localStorage.getItem('vibes-theme');
+      if (initialMode === 'light') {
+        document.body.classList.add('light-mode');
+      }
+      
+      const initialThemeId = localStorage.getItem('vibes-theme-id');
+      if (initialThemeId && initialThemeId !== 'default') {
+        // We need to know the path. Since we haven't fetched themes yet, 
+        // we can assume the standard path or wait for app.js.
+        // For standard themes, it's themes/{id}/theme.css.
+        const themeLink = document.getElementById('theme-link');
+        if (themeLink) {
+          themeLink.href = `themes/${initialThemeId}/theme.css`;
+        }
       }
     })();
   </script>

@@ -38,6 +38,11 @@
     targetHue1: 220,
     targetHue2: 280,
     targetHue3: 180,
+
+    // Theme Colors (CSS Variable derived)
+    themePrimary: { r: 59, g: 130, b: 246 },
+    themeSecondary: { r: 96, g: 165, b: 250 },
+
     // Energy — driven by audio or user interaction
     energy: 0.15,
     targetEnergy: 0.15,
@@ -57,6 +62,47 @@
     audioMid: 0,
     audioTreble: 0,
   };
+
+  function refreshThemeColors() {
+    const style = getComputedStyle(document.documentElement);
+    const primary = style.getPropertyValue('--primary').trim();
+    const secondary = style.getPropertyValue('--secondary').trim();
+
+    // Helper to parse hex to RGB
+    const parseColor = (color) => {
+      if (color.startsWith('#')) {
+        const hex = color.substring(1);
+        if (hex.length === 3) {
+           const r = parseInt(hex[0] + hex[0], 16);
+           const g = parseInt(hex[1] + hex[1], 16);
+           const b = parseInt(hex[2] + hex[2], 16);
+           return { r, g, b };
+        }
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return { r, g, b };
+      }
+      return null;
+    };
+
+    const p = parseColor(primary);
+    const s = parseColor(secondary);
+    if (p) state.themePrimary = p;
+    if (s) state.themeSecondary = s;
+    
+    console.log('[Background] Theme colors refreshed:', state.themePrimary, state.themeSecondary);
+  }
+
+  // Listen for theme/settings changes
+  document.addEventListener('settings-changed', refreshThemeColors);
+  document.addEventListener('dashboard:themes-loaded', refreshThemeColors);
+  
+  // Also watch for the theme link specifically finishing loading
+  const themeLink = document.getElementById('theme-link');
+  if (themeLink) {
+    themeLink.addEventListener('load', refreshThemeColors);
+  }
 
   // ── Color Palettes ── (each is [hue1, hue2, hue3])
   const PALETTES = [
@@ -872,7 +918,7 @@
         uniforms: {
           time: { value: 0 },
           energy: { value: 0 },
-          baseHue: { value: 0.6 }
+          themeColor: { value: new THREE.Vector3(0.3, 0.5, 1.0) }
         },
         vertexColors: true,
         vertexShader: `
@@ -903,15 +949,15 @@
           }
         `,
         fragmentShader: `
-          uniform float baseHue;
+          uniform vec3 themeColor;
           varying vec3 vColor;
           void main() {
             float dist = length(gl_PointCoord - vec2(0.5));
             if (dist > 0.5) discard;
             float alpha = (0.5 - dist) * 2.0;
             
-            // Shift color based on uniforms
-            vec3 finalColor = vColor;
+            // Blend original particle color with active theme color
+            vec3 finalColor = mix(vColor, themeColor, 0.4);
             
             gl_FragColor = vec4(finalColor, alpha * 0.8);
           }
@@ -943,7 +989,10 @@
       this.accumulatedTime += dt * (0.1 + state.energy * 0.4);
       this.material.uniforms.time.value = this.accumulatedTime;
       this.material.uniforms.energy.value = state.energy + state.audioBass * 0.5;
-      this.material.uniforms.baseHue.value = state.hue1 / 360;
+      
+      // Update shader colors based on theme
+      const p = state.themePrimary;
+      this.material.uniforms.themeColor.value.set(p.r / 255, p.g / 255, p.b / 255);
       
       // Gentle tilt based on mouse
       const targetRotX = (state.mouseY / window.innerHeight - 0.5) * 0.5;
@@ -966,7 +1015,8 @@
           time: { value: 0 },
           energy: { value: 0 },
           resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-          baseHue: { value: 0.6 },
+          themeColor1: { value: new THREE.Vector3(0.3, 0.5, 1.0) },
+          themeColor2: { value: new THREE.Vector3(0.8, 0.2, 1.0) },
           mouse: { value: new THREE.Vector2(0.5, 0.5) }
         },
         vertexShader: `
@@ -980,7 +1030,8 @@
           uniform float time;
           uniform float energy;
           uniform vec2 resolution;
-          uniform float baseHue;
+          uniform vec3 themeColor1;
+          uniform vec3 themeColor2;
           uniform vec2 mouse;
           varying vec2 vUv;
           
@@ -1017,12 +1068,6 @@
             return v;
           }
 
-          vec3 hsv2rgb(vec3 c) {
-            vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-            vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-            return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-          }
-
           void main() {
             vec2 p = (vUv - 0.5) * 2.0;
             p.x *= resolution.x / resolution.y;
@@ -1044,9 +1089,9 @@
 
             float f = fbm(p + r * (2.0 + energy * 3.0));
 
-            // Color palette
-            float hue = baseHue + f * 0.2 + energy * 0.1;
-            vec3 col = hsv2rgb(vec3(fract(hue), 0.7 - f * 0.2, f * 0.8 + 0.2));
+            // Use theme colors for gradient interpolation
+            vec3 col = mix(themeColor1, themeColor2, clamp(f * 1.5, 0.0, 1.0));
+            col = mix(col, vec3(1.0), energy * 0.1 * f); // Add energy glimmers
 
             // Contrast & Vignette
             col = col * col * (3.0 - 2.0 * col);
@@ -1077,7 +1122,12 @@
     update(dt, state) {
       this.material.uniforms.time.value = state.time * 0.3; // Slower time for fluid
       this.material.uniforms.energy.value = state.energy + state.audioMid * 0.3;
-      this.material.uniforms.baseHue.value = state.hue1 / 360;
+      
+      const p = state.themePrimary;
+      const s = state.themeSecondary;
+      this.material.uniforms.themeColor1.value.set(p.r / 255, p.g / 255, p.b / 255);
+      this.material.uniforms.themeColor2.value.set(s.r / 255, s.g / 255, s.b / 255);
+      
       this.material.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
       
       // Pass mouse coordinates normalized [0, 1]
@@ -1099,7 +1149,8 @@
         uniforms: {
           time: { value: 0 },
           resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-          baseHue: { value: 0.6 },
+          themeColorSky: { value: new THREE.Vector3(0.1, 0.2, 0.5) },
+          themeColorCloud: { value: new THREE.Vector3(0.8, 0.8, 1.0) },
           energy: { value: 0 }
         },
         vertexShader: `
@@ -1112,7 +1163,8 @@
         fragmentShader: `
           uniform float time;
           uniform vec2 resolution;
-          uniform float baseHue;
+          uniform vec3 themeColorSky;
+          uniform vec3 themeColorCloud;
           uniform float energy;
           varying vec2 vUv;
 
@@ -1142,12 +1194,6 @@
             return f;
           }
 
-          vec3 hsv2rgb(vec3 c) {
-            vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-            vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-            return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-          }
-
           void main() {
             vec2 p = (vUv - 0.5) * 2.0;
             p.x *= resolution.x / resolution.y;
@@ -1167,8 +1213,8 @@
               t += 0.1 + d * 0.2;
             }
 
-            vec3 skyCol = hsv2rgb(vec3(baseHue, 0.8, 0.3));
-            vec3 cloudCol = hsv2rgb(vec3(fract(baseHue + 0.1), 0.4, 0.8 + energy * 0.2));
+            vec3 skyCol = themeColorSky;
+            vec3 cloudCol = mix(themeColorCloud, vec3(1.0), energy * 0.3);
             
             vec3 col = mix(skyCol, cloudCol, min(den, 1.0));
 
@@ -1196,7 +1242,12 @@
     update(dt, state) {
       this.material.uniforms.time.value = state.time;
       this.material.uniforms.energy.value = state.energy;
-      this.material.uniforms.baseHue.value = state.hue1 / 360;
+      
+      const p = state.themePrimary;
+      const s = state.themeSecondary;
+      this.material.uniforms.themeColorSky.value.set(p.r / 255, p.g / 255, p.b / 255);
+      this.material.uniforms.themeColorCloud.value.set(s.r / 255, s.g / 255, s.b / 255);
+
       this.material.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
     }
   }

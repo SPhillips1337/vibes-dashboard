@@ -869,11 +869,44 @@ app.get('/api/modules', (req, res) => {
     }
 
     res.json(modules);
-  } catch (err) {
-    console.error('[Modules] Error loading modules:', err);
-    res.status(500).json({ error: 'Failed to load modules' });
-  }
-});
+    } catch (err) {
+    console.error('[Modules] Error scanning modules:', err);
+    res.status(500).json({ error: 'Failed to list modules' });
+    }
+    });
+
+    // REST API — discover available themes
+    app.get('/api/themes', (req, res) => {
+    const themesDir = path.join(__dirname, '..', 'public', 'themes');
+    try {
+    if (!fs.existsSync(themesDir)) {
+      return res.json([]);
+    }
+    const dirs = fs.readdirSync(themesDir);
+    const themes = [];
+
+    dirs.forEach(dir => {
+      const dirPath = path.join(themesDir, dir);
+      const manifestPath = path.join(dirPath, 'manifest.json');
+
+      if (fs.statSync(dirPath).isDirectory() && fs.existsSync(manifestPath)) {
+        try {
+          const manifestContent = fs.readFileSync(manifestPath, 'utf8');
+          const manifest = JSON.parse(manifestContent);
+          manifest.path = `/themes/${dir}/theme.css`;
+          themes.push(manifest);
+        } catch (e) {
+          console.error(`[Themes] Failed to parse manifest for theme ${dir}:`, e.message);
+        }
+      }
+    });
+
+    res.json(themes);
+    } catch (err) {
+    console.error('[Themes] Error scanning themes:', err);
+    res.status(500).json({ error: 'Failed to list themes' });
+    }
+    });
 
 // REST API — save user sidebar modules order preference
 app.post('/api/users/module-order', (req, res) => {

@@ -2,56 +2,6 @@
    Vibes Dashboard — Design System CSS
    ═══════════════════════════════════════════ */
 
-:root {
-  --primary: #3b82f6;
-  --secondary: #60a5fa;
-  --bg: #080810;
-  --surface: rgba(12, 12, 18, 0.55);
-  --surface-hover: rgba(255, 255, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.08);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --glass-blur: 16px;
-  --radius: 16px;
-  --radius-sm: 10px;
-  --shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 8px 32px rgba(0, 0, 0, 0.4);
-  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  --glow-opacity: 0.1;
-  --sidebar-bg: rgba(8, 8, 14, 0.7);
-  --panel-bg: rgba(12, 12, 18, 0.75);
-  --add-card-border: rgba(255, 255, 255, 0.12);
-  --add-card-bg: rgba(255, 255, 255, 0.02);
-  --add-card-text: rgba(255, 255, 255, 0.3);
-  --add-card-hover-border: #ffffff;
-  --add-card-hover-bg: rgba(255, 255, 255, 0.06);
-  --add-card-hover-text: #ffffff;
-  --volume-bg: rgba(255, 255, 255, 0.1);
-  --input-bg: rgba(255, 255, 255, 0.04);
-}
-
-body.light-mode {
-  --bg: #eef2f7;
-  --surface: rgba(255, 255, 255, 0.45);
-  --surface-hover: rgba(0, 0, 0, 0.05);
-  --border: rgba(0, 0, 0, 0.08);
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 0 rgba(0, 0, 0, 0.06), 0 8px 32px rgba(0, 0, 0, 0.08);
-  --sidebar-bg: rgba(255, 255, 255, 0.6);
-  --panel-bg: rgba(255, 255, 255, 0.65);
-  --add-card-border: rgba(15, 23, 42, 0.15);
-  --add-card-bg: rgba(15, 23, 42, 0.03);
-  --add-card-text: rgba(15, 23, 42, 0.4);
-  --add-card-hover-border: rgba(15, 23, 42, 0.4);
-  --add-card-hover-bg: rgba(15, 23, 42, 0.08);
-  --add-card-hover-text: rgba(15, 23, 42, 0.8);
-  --volume-bg: rgba(15, 23, 42, 0.15);
-  --input-bg: rgba(0, 0, 0, 0.03);
-}
-
 * {
   margin: 0;
   padding: 0;

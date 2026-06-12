@@ -1,0 +1,87 @@
+/* ── CRT Terminal Theme (Retro) ── */
+
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+:root {
+  --primary: #33ff33; /* Phosphor Green */
+  --secondary: #22aa22;
+  --bg: #0a0a0a;
+  --surface: rgba(0, 20, 0, 0.85);
+  --surface-hover: rgba(51, 255, 51, 0.1);
+  --border: rgba(51, 255, 51, 0.4);
+  --text-primary: #33ff33;
+  --text-secondary: #118811;
+  --success: #33ff33;
+  --warning: #ffcc00;
+  --danger: #ff3300;
+  --glass-blur: 4px;
+  --radius: 2px;
+  --radius-sm: 2px;
+  --shadow: 0 0 10px rgba(51, 255, 51, 0.3);
+  --transition: none; /* Instant switching */
+  --glow-opacity: 1.0;
+  --sidebar-bg: #000000;
+  --panel-bg: #001100;
+  --add-card-border: #33ff33;
+  --add-card-bg: transparent;
+  --add-card-text: #33ff33;
+  --add-card-hover-border: #33ff33;
+  --add-card-hover-bg: rgba(51, 255, 51, 0.2);
+  --add-card-hover-text: #ffffff;
+  --volume-bg: #004400;
+  --input-bg: #000000;
+}
+
+body {
+  font-family: 'VT323', monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Custom theme override: CRT flicker & scanlines */
+body::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 1000;
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+
+body::after {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: rgba(18, 16, 16, 0.1);
+  opacity: 0;
+  z-index: 1000;
+  pointer-events: none;
+  animation: flicker 0.15s infinite;
+}
+
+@keyframes flicker {
+  0% { opacity: 0.27861; }
+  5% { opacity: 0.34769; }
+  10% { opacity: 0.23604; }
+  15% { opacity: 0.90626; }
+  20% { opacity: 0.18128; }
+  25% { opacity: 0.83891; }
+  30% { opacity: 0.65583; }
+  35% { opacity: 0.57807; }
+  40% { opacity: 0.26559; }
+  45% { opacity: 0.84693; }
+  50% { opacity: 0.96019; }
+  55% { opacity: 0.08523; }
+  60% { opacity: 0.71056; }
+  65% { opacity: 0.73477; }
+  70% { opacity: 0.85823; }
+  75% { opacity: 0.21945; }
+  80% { opacity: 0.95152; }
+  85% { opacity: 0.98614; }
+  90% { opacity: 0.45551; }
+  95% { opacity: 0.25633; }
+  100% { opacity: 0.34769; }
+}
