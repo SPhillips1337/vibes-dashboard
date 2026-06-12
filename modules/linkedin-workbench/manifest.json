@@ -1,7 +1,7 @@
 {
   "id": "linkedin-overview",
   "name": "LinkedIn Overview",
-  "subtitle": "Native content calendar and publish queue",
+  "subtitle": "Native content calendar, review queue, and RSS tools",
   "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"5\" /><path d=\"M8.5 10.2V16\" /><circle cx=\"8.5\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\" /><path d=\"M12 10.2V16\" /><path d=\"M12 12.1c0-1.1.7-2 1.9-2s1.9.9 1.9 2V16\" /></svg>",
   "css": "style.css",
   "html": "view.html",

@@ -493,7 +493,9 @@ app.post('/api/settings', (req, res) => {
 
 // REST API — LinkedIn content calendar overview from the local PHP project
 app.get('/api/linkedin/overview', (req, res) => {
-  const linkedInDataPath = '/var/www/html/LinkedIn/data/content_calendar.json';
+  const localDataPath = path.join(__dirname, '..', 'data', 'linkedin', 'content_calendar.json');
+  const legacyDataPath = '/var/www/html/LinkedIn/data/content_calendar.json';
+  const linkedInDataPath = fs.existsSync(localDataPath) ? localDataPath : legacyDataPath;
 
   try {
     if (!fs.existsSync(linkedInDataPath)) {
@@ -537,7 +539,7 @@ app.get('/api/linkedin/overview', (req, res) => {
       published_at: post.published_at || null,
       link: post.link || null,
       summaryPreview: cleanText(post.summary || post.content, 260),
-      hasImage: Boolean(post.image_path)
+      hasImage: Boolean(post.image_path || post.image_url)
     });
 
     for (const post of list) {
@@ -591,9 +593,45 @@ app.get('/api/linkedin/overview', (req, res) => {
   }
 });
 
+// REST API — update a specific LinkedIn post
+app.post('/api/linkedin/posts/:id', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const { status, topic, content, scheduled_time } = req.body;
+  const localDataPath = path.join(__dirname, '..', 'data', 'linkedin', 'content_calendar.json');
+  const legacyDataPath = '/var/www/html/LinkedIn/data/content_calendar.json';
+  const linkedInDataPath = fs.existsSync(localDataPath) ? localDataPath : legacyDataPath;
+
+  try {
+    if (!fs.existsSync(linkedInDataPath)) {
+      return res.status(404).json({ error: 'Content calendar not found' });
+    }
+
+    const raw = fs.readFileSync(linkedInDataPath, 'utf8');
+    const posts = JSON.parse(raw);
+    const postIndex = posts.findIndex(p => p.id === id);
+
+    if (postIndex === -1) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (status) posts[postIndex].status = status;
+    if (topic) posts[postIndex].topic = topic;
+    if (content) posts[postIndex].content = content;
+    if (scheduled_time) posts[postIndex].scheduled_time = scheduled_time;
+
+    fs.writeFileSync(linkedInDataPath, JSON.stringify(posts, null, 2), 'utf8');
+    res.json({ success: true, post: posts[postIndex] });
+  } catch (err) {
+    console.error('[LinkedIn] Failed to update post:', err);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
 // REST API — current RSS import / trigger status from the local LinkedIn project
 app.get('/api/linkedin/rss-status', (req, res) => {
-  const logsDir = '/var/www/html/LinkedIn/logs';
+  const localLogsDir = path.join(__dirname, '..', 'data', 'linkedin', 'logs');
+  const legacyLogsDir = '/var/www/html/LinkedIn/logs';
+  const logsDir = fs.existsSync(localLogsDir) ? localLogsDir : legacyLogsDir;
 
   try {
     if (!fs.existsSync(logsDir)) {
@@ -676,8 +714,11 @@ app.get('/api/linkedin/rss-status', (req, res) => {
 });
 
 app.post('/api/linkedin/rss-trigger', requireAdmin, (req, res) => {
-  const projectRoot = '/var/www/html/LinkedIn';
-  const scriptPath = path.join(projectRoot, 'examples', 'rss_to_linkedin.py');
+  const localProjectRoot = path.join(__dirname, '..', 'data', 'linkedin');
+  const legacyProjectRoot = '/var/www/html/LinkedIn';
+  const projectRoot = fs.existsSync(path.join(localProjectRoot, 'rss_to_linkedin.py')) ? localProjectRoot : legacyProjectRoot;
+  
+  const scriptPath = path.join(projectRoot, fs.existsSync(path.join(localProjectRoot, 'rss_to_linkedin.py')) ? 'rss_to_linkedin.py' : 'examples/rss_to_linkedin.py');
   const logsDir = path.join(projectRoot, 'logs');
   const requestedCount = Number.parseInt(req.body?.count, 10);
   const count = Number.isFinite(requestedCount) ? Math.max(1, Math.min(10, requestedCount)) : 5;

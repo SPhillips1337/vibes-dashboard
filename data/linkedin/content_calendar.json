@@ -1,0 +1,40 @@
+[
+  {
+    "id": "post_001",
+    "topic": "The Future of Autonomous Agents",
+    "status": "published",
+    "created_at": "2026-06-01T10:00:00Z",
+    "scheduled_time": "2026-06-02T14:00:00Z",
+    "published_at": "2026-06-02T14:05:00Z",
+    "content": "Autonomous agents are transforming how we build software. #AI #Agents #Future",
+    "summary": "Exploring the impact of autonomous agents on modern software engineering workflows.",
+    "link": "https://linkedin.com/posts/future-agents"
+  },
+  {
+    "id": "post_002",
+    "topic": "Vibes Dashboard v2.0 Released",
+    "status": "approved",
+    "created_at": "2026-06-10T09:00:00Z",
+    "scheduled_time": "2026-06-12T15:00:00Z",
+    "content": "We just released Vibes Dashboard v2.0 with full modular support!",
+    "summary": "Announcing the latest major update to the Vibes Dashboard with a focus on modularity and glassmorphism."
+  },
+  {
+    "id": "post_003",
+    "topic": "Why Glassmorphism is Back",
+    "status": "pending_review",
+    "created_at": "2026-06-11T16:30:00Z",
+    "scheduled_time": "2026-06-13T10:00:00Z",
+    "content": "Glassmorphism provides a premium feel that flat design lacks. Here is why we use it in Vibes.",
+    "summary": "A deep dive into the aesthetic choices behind the Vibes Dashboard UI."
+  },
+  {
+    "id": "post_004",
+    "topic": "Implementing MCP in LinkedIn Tools",
+    "status": "pending",
+    "created_at": "2026-06-12T08:15:00Z",
+    "scheduled_time": "2026-06-14T09:00:00Z",
+    "content": "Model Context Protocol (MCP) allows our LinkedIn tools to be much smarter.",
+    "summary": "Technical overview of integrating MCP for content generation and approval workflows."
+  }
+]
