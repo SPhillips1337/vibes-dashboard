@@ -824,8 +824,10 @@
   class CosmicAnomalyMode {
     constructor() {
       this.group = new THREE.Group();
+      this.accumulatedTime = 0;
       
       const particleCount = 20000;
+
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(particleCount * 3);
       const colors = new Float32Array(particleCount * 3);
@@ -872,6 +874,7 @@
           energy: { value: 0 },
           baseHue: { value: 0.6 }
         },
+        vertexColors: true,
         vertexShader: `
           uniform float time;
           uniform float energy;
@@ -884,7 +887,7 @@
             
             // Rotation based on distance from center
             float dist = length(pos.xz);
-            float angle = time * (1.0 / (dist + 1.0)) * (0.5 + energy * 2.0);
+            float angle = time * (1.0 / (dist + 1.0));
             
             float s = sin(angle);
             float c = cos(angle);
@@ -937,7 +940,8 @@
     }
 
     update(dt, state) {
-      this.material.uniforms.time.value = state.time;
+      this.accumulatedTime += dt * (0.1 + state.energy * 0.4);
+      this.material.uniforms.time.value = this.accumulatedTime;
       this.material.uniforms.energy.value = state.energy + state.audioBass * 0.5;
       this.material.uniforms.baseHue.value = state.hue1 / 360;
       

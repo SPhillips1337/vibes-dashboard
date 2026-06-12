@@ -411,32 +411,28 @@ app.get('/api/audio', (req, res) => {
   }
 });
 
-// ── Pixabay Music Discovery API ──
+// ── iTunes Music Discovery API ──
 app.get('/api/music/search', async (req, res) => {
   const query = req.query.q || '';
-  const settingsPath = path.join(__dirname, '..', 'settings.json');
-  let pixabayKey = process.env.PIXABAY_KEY;
-
-  if (!pixabayKey && fs.existsSync(settingsPath)) {
-    try {
-      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-      pixabayKey = settings['vibes-general-prefs']?.pixabayKey;
-    } catch (e) {}
-  }
-
-  if (!pixabayKey) {
-    // Return empty results or error if no key
-    return res.status(400).json({ error: 'Pixabay API Key not configured in settings.' });
-  }
 
   try {
-    const url = `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&order=popular`;
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=15`;
     const response = await fetch(url);
     const data = await response.json();
-    res.json(data);
+    
+    // Map iTunes to the Pixabay-like format the frontend expects
+    const hits = data.results.map(r => ({
+      id: r.trackId,
+      tags: r.trackName,
+      user: r.artistName,
+      duration: Math.round(r.trackTimeMillis / 1000),
+      audio: r.previewUrl
+    })).filter(h => h.audio); // Only keep results with a preview
+
+    res.json({ hits });
   } catch (err) {
-    console.error('[Pixabay] Search failed:', err);
-    res.status(500).json({ error: 'Failed to search Pixabay' });
+    console.error('[iTunes] Search failed:', err);
+    res.status(500).json({ error: 'Failed to search iTunes' });
   }
 });
 

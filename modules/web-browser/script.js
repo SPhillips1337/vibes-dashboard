@@ -52,7 +52,7 @@
     if (!iframe) return;
     const isSameOrigin = !url || url.startsWith('/') || url.startsWith(window.location.origin) || url.startsWith('./') || url.startsWith('../');
     if (isSameOrigin && !url.includes('/api/proxy?url=')) {
-      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+      iframe.removeAttribute('sandbox');
     } else {
       iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups');
     }

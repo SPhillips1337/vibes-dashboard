@@ -1,6 +1,16 @@
 (function () {
   'use strict';
 
+  function escapeHtml(text) {
+    if (!text) return '';
+    return text.toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   // ── Track Data ──
   let PLAYLIST = [];
 
@@ -223,7 +233,7 @@
   async function searchMusic(query) {
     if (!query.trim()) return;
     const resultsEl = viewPanel.querySelector('#discovery-results');
-    resultsEl.innerHTML = '<div class="empty-discovery">Searching Pixabay...</div>';
+    resultsEl.innerHTML = '<div class="empty-discovery">Searching iTunes...</div>';
 
     try {
       const response = await fetch(`/api/music/search?q=${encodeURIComponent(query)}`);
@@ -303,12 +313,153 @@
     window.location.href = '/api/music/download-all';
   }
 
+  async function fetchPlaylist() {
+    try {
+      const response = await fetch('/api/audio');
+      PLAYLIST = await response.json();
+
+      if (PLAYLIST.length > 0) {
+        renderPlaylist();
+        loadTrack(0);
+      } else {
+        if (trackName) trackName.textContent = 'No Audio Found';
+        if (trackArtist) trackArtist.textContent = 'Add MP3s to public/audio';
+      }
+    } catch (e) {
+      console.error('[Music] Failed to load playlist:', e);
+    }
+  }
+
+  function resizeVisualizers() {
+    if (!visualizerCanvas) return;
+    const rect = visualizerCanvas.parentElement.getBoundingClientRect();
+    visualizerCanvas.width = rect.width || 300;
+    visualizerCanvas.height = rect.height || 300;
+
+    const mainCanvas = document.getElementById('main-visualizer');
+    if (mainCanvas && mainCanvas.parentElement) {
+      const mainRect = mainCanvas.parentElement.getBoundingClientRect();
+      mainCanvas.width = mainRect.width || window.innerWidth;
+      mainCanvas.height = mainRect.height || window.innerHeight;
+    }
+  }
+
+  function renderPlaylist() {
+    if (!playlistEl) return;
+    playlistEl.replaceChildren();
+    
+    PLAYLIST.forEach((track, i) => {
+      const item = document.createElement('div');
+      item.className = `playlist-item ${i === state.currentIndex ? 'active' : ''}`;
+      
+      const idxDiv = document.createElement('div');
+      idxDiv.className = 'item-index';
+      idxDiv.textContent = (i + 1).toString().padStart(2, '0');
+      item.appendChild(idxDiv);
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'item-info';
+      
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'item-name';
+      nameDiv.textContent = track.name;
+      infoDiv.appendChild(nameDiv);
+
+      const artistDiv = document.createElement('div');
+      artistDiv.className = 'item-artist';
+      artistDiv.textContent = track.artist;
+      infoDiv.appendChild(artistDiv);
+
+      item.appendChild(infoDiv);
+      
+      item.addEventListener('click', () => loadTrack(i, true));
+      playlistEl.appendChild(item);
+    });
+  }
+
+  function loadTrack(index, autoPlay = false) {
+    state.currentIndex = index;
+    const track = PLAYLIST[index];
+    if (!track) return;
+    
+    audio.src = track.url;
+    if (trackName) trackName.textContent = track.name;
+    if (trackArtist) trackArtist.textContent = track.artist;
+
+    // Update active class
+    document.querySelectorAll('.playlist-item').forEach((item, i) => {
+      item.classList.toggle('active', i === index);
+    });
+
+    // Auto-map visualizer background mode to track names/themes
+    if (window.bgEffect && track.name) {
+      const name = track.name.toLowerCase();
+      if (name.includes('cyber') || name.includes('synth') || name.includes('neon') || name.includes('grid')) {
+        window.bgEffect.setMode('Cyber Stream');
+      } else if (name.includes('fire') || name.includes('ember') || name.includes('flame') || name.includes('heat')) {
+        window.bgEffect.setMode('Ember Storm');
+      } else if (name.includes('void') || name.includes('singularity') || name.includes('black hole') || name.includes('gargantua') || name.includes('space') || name.includes('gravity')) {
+        window.bgEffect.setMode('Gargantua Singularity');
+      } else if (name.includes('aurora') || name.includes('wave') || name.includes('flow') || name.includes('ambient') || name.includes('chill') || name.includes('dream') || name.includes('sky')) {
+        window.bgEffect.setMode('Aurora Waves');
+      } else if (name.includes('lightning') || name.includes('electricity') || name.includes('thunder') || name.includes('volt') || name.includes('storm')) {
+        window.bgEffect.setMode('Electrical Storm');
+      } else if (name.includes('gear') || name.includes('clock') || name.includes('kinetic') || name.includes('mechanism') || name.includes('time') || name.includes('machine')) {
+        window.bgEffect.setMode('Kinetic Clockwork');
+      } else {
+        window.bgEffect.setMode('Nebula Flow');
+      }
+
+      // Update UI mode selector label if it exists in the DOM
+      const vizModeLabel = document.getElementById('viz-mode-label');
+      if (vizModeLabel) {
+        vizModeLabel.textContent = window.bgEffect.getCurrentModeName();
+        vizModeLabel.classList.add('flash');
+        setTimeout(() => { vizModeLabel.classList.remove('flash'); }, 600);
+      }
+    }
+
+    if (autoPlay) {
+      playTrack();
+    }
+  }
+
   function handleTrackEnd() {
     if (state.isRepeat) {
       loadTrack(state.currentIndex, true);
     } else {
       nextTrack();
     }
+  }
+
+  function togglePlay() {
+    if (state.isPlaying) {
+      pauseTrack();
+    } else {
+      playTrack();
+    }
+  }
+
+  async function playTrack() {
+    // Resume AudioContext if suspended
+    if (!state.audioContext) {
+      setupAudioContext();
+    } else if (state.audioContext.state === 'suspended') {
+      await state.audioContext.resume();
+    }
+
+    audio.play();
+    state.isPlaying = true;
+    if (playIcon) playIcon.classList.add('hidden');
+    if (pauseIcon) pauseIcon.classList.remove('hidden');
+    startVisualizer();
+  }
+
+  function pauseTrack() {
+    audio.pause();
+    state.isPlaying = false;
+    if (playIcon) playIcon.classList.remove('hidden');
+    if (pauseIcon) pauseIcon.classList.add('hidden');
   }
 
   function toggleShuffle() {
