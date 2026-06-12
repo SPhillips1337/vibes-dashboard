@@ -54,3 +54,4 @@ project.json
 
 # Local database storage & session data
 server/data/
+audits/*

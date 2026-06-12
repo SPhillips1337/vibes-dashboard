@@ -5,6 +5,16 @@
   let installedGrid = null;
   let catalogGrid = null;
 
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function init() {
     viewPanel = document.getElementById('view-module-manager');
     if (!viewPanel) return;
@@ -44,15 +54,15 @@
       card.className = 'module-card';
       card.innerHTML = `
         <div class="module-card-header">
-          <div class="module-icon">${mod.icon || ''}</div>
+          <div class="module-icon">${escapeHtml(mod.icon || '')}</div>
           <div class="module-info">
-            <h3>${mod.name}</h3>
-            <p>${mod.subtitle || 'Installed Module'}</p>
+            <h3>${escapeHtml(mod.name)}</h3>
+            <p>${escapeHtml(mod.subtitle || 'Installed Module')}</p>
           </div>
         </div>
         <div class="module-card-footer">
           <span class="status-badge active">Active</span>
-          <button class="action-btn" data-id="${mod.id}">Open</button>
+          <button class="action-btn" data-id="${escapeHtml(mod.id)}">Open</button>
         </div>
       `;
       
@@ -82,10 +92,10 @@
       card.className = 'module-card';
       card.innerHTML = `
         <div class="module-card-header">
-          <div class="module-icon">${item.icon}</div>
+          <div class="module-icon">${escapeHtml(item.icon)}</div>
           <div class="module-info">
-            <h3>${item.name}</h3>
-            <p>${item.subtitle}</p>
+            <h3>${escapeHtml(item.name)}</h3>
+            <p>${escapeHtml(item.subtitle)}</p>
           </div>
         </div>
         <div class="module-card-footer">
