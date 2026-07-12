@@ -80,6 +80,8 @@
 | Auth mechanism | scrypt + session cookies | No JWT complexity; server-side sessions fit local-use model |
 | Background engine | Three.js | Already a dependency; richer than raw Canvas for 3D modes |
 | Voice recognition | Web Speech API (Chrome/Edge) | No server-side dependency; adequate for local use |
+| Durable harness runs | Append-only versioned JSONL + atomic JSON snapshots | Auditable restart recovery without a database; verifier events exclusively grant completion |
+| Harness verification policy | Server-owned allowlisted argv recipes + fail-closed real-run default | Agents may request recipe IDs but cannot select commands, policy paths, cwd, or limits |
 
 See `docs/adr/` for full ADR files.
 

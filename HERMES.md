@@ -63,6 +63,7 @@
 | [0002](docs/adr/ADR-0002-manifest-module-system.md) | Manifest-driven module convention | Accepted |
 | [0003](docs/adr/ADR-0003-jamendo-music-api.md) | Jamendo API for music discovery (not iTunes, not Pixabay) | Accepted |
 | [0004](docs/adr/ADR-0004-json-file-playlist.md) | JSON file persistence for saved playlist | Accepted |
+| [0005](docs/adr/ADR-0005-durable-harness-runs.md) | Durable harness runs | Accepted |
 
 ---
 

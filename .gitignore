@@ -55,3 +55,6 @@ project.json
 # Local database storage & session data
 server/data/
 audits/*
+
+# Durable agent harness runtime state
+data/harness/runs/

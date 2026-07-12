@@ -1,0 +1,4 @@
+{"schemaVersion":1,"eventId":"failed-01","runId":"failed-run","type":"run.created","timestamp":"2026-07-12T11:00:00.000Z","actor":{"type":"harness","id":"dashboard"},"data":{}}
+{"schemaVersion":1,"eventId":"failed-02","runId":"failed-run","type":"execution.started","timestamp":"2026-07-12T11:01:00.000Z","actor":{"type":"harness","id":"dashboard"},"data":{}}
+{"schemaVersion":1,"eventId":"failed-03","runId":"failed-run","type":"task.started","timestamp":"2026-07-12T11:02:00.000Z","actor":{"type":"agent","id":"worker"},"data":{"task":{"id":"task-fail","title":"Fail safely"}}}
+{"schemaVersion":1,"eventId":"failed-04","runId":"failed-run","type":"execution.failed","timestamp":"2026-07-12T11:03:00.000Z","actor":{"type":"harness","id":"dashboard"},"data":{"reason":"process exited 1","evidence":["exit:1"]}}

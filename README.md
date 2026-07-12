@@ -40,6 +40,9 @@ curl -fsSL https://raw.githubusercontent.com/SPhillips1337/vibes-dashboard/main/
 | `ADMIN_PASSWORD` | `VibesAdmin2026!` | Seed admin password — **change immediately** |
 | `USE_VIBES` | auto-detect | `true` = real agents, `false` = demo simulation |
 | `ALLOW_LOCAL_PROXY` | `true` in dev | Allow browser proxy to reach private IPs |
+| `AGENT_COMM_MCP_URL` | `http://127.0.0.1:8767/mcp` | Agent Communication MCP Streamable HTTP endpoint |
+| `AGENT_COMM_MCP_TOKEN` | unset | Server-only MCP bearer token; unset shows a not-configured state |
+| `AGENT_COMM_MCP_TIMEOUT_MS` | `5000` | Coordination request timeout in milliseconds |
 
 ---
 
@@ -54,6 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/SPhillips1337/vibes-dashboard/main/
 │   ├── web-browser/        # Sandboxed iframe browser with dock tabs
 │   ├── log-viewer/         # Real-time log viewer
 │   ├── linkedin-workbench/ # Content calendar & RSS automation
+│   ├── control-center/     # Real provider/activity/approval projection
 │   └── module-manager/     # Sidebar reordering & panel config
 ├── public/
 │   ├── index.html          # Shell SPA
@@ -68,6 +72,7 @@ curl -fsSL https://raw.githubusercontent.com/SPhillips1337/vibes-dashboard/main/
 ├── server/
 │   ├── index.js            # Express + Socket.io + all API routes
 │   ├── auth.js             # Session, RBAC, rate limiting, scrypt hashing
+│   ├── coordination-adapter.js # Secret-safe Agent Communication MCP adapter
 │   └── vibes-bridge.js     # Child-process bridge to Vibes CLI (JSON-RPC)
 ├── data/music/
 │   └── saved_playlist.json # Virtual playlist — Jamendo stream metadata
@@ -106,6 +111,7 @@ curl -fsSL https://raw.githubusercontent.com/SPhillips1337/vibes-dashboard/main/
 - **Vibe Station** — Music player with Jamendo API search (royalty-free), virtual playlist, audio visualizer
 - **Voice Commands** — Wake-word detection ("Vibes"), Web Speech API, TTS feedback, intent registry
 - **LLM Provider** — Configure Ollama, LM Studio, or OpenAI-compatible backends
+- **Local Agent Control Center** — Real readiness, activity, approvals, verification outcomes, and artifacts with explicit empty/unavailable states
 - **Security** — HTTPS, `__Host-` cookies, CSRF tokens, scrypt hashing, SSRF blocking
 
 ---
