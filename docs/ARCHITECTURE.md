@@ -62,6 +62,15 @@ The `VibesBridge` handles child process spawning:
 ### `server/coordination-adapter.js`
 Dependency-injected boundary to local Agent Communication MCP. Production uses `AGENT_COMM_MCP_URL`, `AGENT_COMM_MCP_TOKEN`, and a bounded timeout; tests inject fixture clients. Upstream tool names live in one `TOOL_NAMES` mapping. The adapter normalizes provider readiness and activity, derives approval/verification/artifact projections, and emits stable unavailable reasons without exposing secrets or raw errors. Its protected `GET /api/control-center` route returns `503` rather than simulated data when unavailable.
 
+### `server/harness/`
+The durable run core uses versioned, size-limited event envelopes (`event-contract.js`), filesystem persistence (`run-store.js`), deterministic replay (`run-projector.js`), and a lifecycle boundary (`run-service.js`). Each run has immutable initial metadata in `run.json` and an append-only `events.jsonl`; snapshot replacements are atomic and concurrent event appends are serialized per run. `RunService` generates event IDs and harness actors internally, persists before emitting, enforces transitions, and writes only allowlisted `plan.json` and `verification.json` documents.
+
+Startup restoration completes before the server listens. Terminal, approval, and blocked runs retain their state. Planning, execution, and verification runs receive an appended `run.restored` event and project as `interrupted`; no child process is restarted. Truncated final JSONL records are ignored with warnings exposed on the run projection. The server's `agents` map and existing `agent-created`, `agent-updated`, and `agent-log` messages are compatibility projections only. `[TASK_STATUS]` stderr is parsed by `agent-compat.js` into typed task events rather than mutating authority state.
+
+Execution and verification are separate trust boundaries: `execution.claimed_complete` automatically enters one attempt-keyed verification orchestration seam; only `verification.passed` projects `completed`, while `verification.failed` projects `failed`. `verification-policy.js` loads server-owned allowlisted argv recipes from `HARNESSES_VERIFICATION_POLICY`; `verifier.js` uses `shell:false`, a fixed run-workspace cwd, bounded environment/time/output, and containment-safe artifact validation. Every artifact result is persisted as `artifact.validated` before the final outcome, and `verification.json` retains command evidence or a verifier-grounded failure record. Real runs fail closed when no checks are configured. Secret-bearing fields are rejected or structurally redacted before persistence. Runtime run directories under `data/harness/runs/` are local, retained as whole directories, and excluded from version control. See [ADR-0005](adr/ADR-0005-durable-harness-runs.md).
+
+Demo runs are prototype fixtures only. Their plan and completion records carry `demo_fixture_only: true`, bypass external command verification, and must not be treated as evidence that a real workspace task was verified.
+
 ---
 
 ## 🎨 Frontend Architecture

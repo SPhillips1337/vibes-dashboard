@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test",
+    "test:harness": "node --test test/harness/*.test.js"
   },
   "keywords": [
     "glassmorphism",

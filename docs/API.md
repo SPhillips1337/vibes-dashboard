@@ -44,6 +44,8 @@ Retrieves a valid CSRF token mapped to the session for header verification on st
 
 ### `GET /api/agents`
 Returns the legacy agent projection of durable harness runs. The compatibility `agents` cache is rebuilt from append-only run events at startup; it is not authoritative. Interrupted work is returned with `status: "interrupted"` and is never automatically resumed. Execution success claims appear as `verifying` until an external verifier passes.
+
+Verification policy is server-controlled. Set `HARNESSES_VERIFICATION_POLICY` to an absolute JSON policy path outside agent workspaces. A run may request recipe IDs, but only configured IDs execute; event/socket payloads cannot override the path, command, arguments, limits, or workspace cwd. Real runs with no selected recipes or declared artifacts fail closed with `no_checks_configured`. Demo mode uses the built-in deterministic `demo-fixture` recipe when no external policy is configured.
 * **Response**: `200 OK`
   ```json
   [

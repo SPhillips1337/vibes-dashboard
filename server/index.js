@@ -5,6 +5,12 @@ const path = require('path');
 const { Server } = require('socket.io');
 const { VibesBridge } = require('./vibes-bridge');
 const { createAdapterFromEnv, createControlCenterHandler } = require('./coordination-adapter');
+const { RunStore } = require('./harness/run-store');
+const { RunService } = require('./harness/run-service');
+const { toAgentProjection, parseTaskStatus } = require('./harness/agent-compat');
+const { AgentController, safeSocketHandler } = require('./harness/agent-controller');
+const { loadVerificationPolicy, selectVerification } = require('./harness/verification-policy');
+const { createVerifier } = require('./harness/verifier');
 const { spawn, spawnSync } = require('child_process');
 
 const app = express();
@@ -81,59 +87,66 @@ app.use('/modules', (req, res, next) => {
 
 // In-memory agent registry
 const agents = new Map();
+const harnessRoot = process.env.HARNESSES_ROOT || path.join(__dirname, '..', 'data', 'harness', 'runs');
+const runService = new RunService({
+  store: new RunStore({ root: harnessRoot }),
+  emit: (event, run) => {
+    const projection = toAgentProjection(run);
+    agents.set(run.id, projection);
+    io.emit('harness-event', event);
+    io.emit('agent-updated', projection);
+  },
+  onEmitError: (error, event) => console.error(`[Harness] Failed to emit ${event.type} for ${event.runId}:`, error)
+});
+const restorePromise = runService.restoreRuns().then(runs => {
+  for (const run of runs) agents.set(run.id, toAgentProjection(run));
+  console.log(`[Harness] Restored ${runs.length} durable run(s) from ${harnessRoot}`);
+}).catch(error => { console.error('[Harness] Restore failed:', error); throw error; });
 
 // Vibes Bridge (real orchestration)
 const vibesBridge = new VibesBridge();
+const policyPath = process.env.HARNESSES_VERIFICATION_POLICY;
+const trustedPolicyRoots = (process.env.HARNESSES_TRUSTED_POLICY_ROOTS || '').split(path.delimiter).filter(Boolean);
+const verificationPolicy = policyPath
+  ? loadVerificationPolicy({ policyPath, trustedPolicyRoots, harnessWorkspaces: [harnessRoot] })
+  : loadVerificationPolicy({ policy: { executablePaths: [], recipes: {} } });
+const verifier = createVerifier();
+const agentController = new AgentController({
+  runService,
+  vibesBridge,
+  project: toAgentProjection,
+  emit: (event, payload) => io.emit(event, payload),
+  verify: async run => run.plan?.demo_fixture_only
+    ? { passed:true, cause:'demo_fixture_only', checks:[], artifacts:[], demo_fixture_only:true }
+    : verifier.verify({
+      workspace: path.resolve(String(run.cwd || '').replace(/^~(?=$|\/)/, require('os').homedir())),
+      selection: selectVerification(await verificationPolicy, {
+        plan: run.plan,
+        declaredArtifacts: (run.artifacts || []).map(artifact => artifact.path).filter(Boolean)
+      })
+    })
+});
 
-vibesBridge.on('agent-status', (data) => {
+vibesBridge.on('agent-status', async (data) => {
   const agent = agents.get(data.id);
   if (agent && data.log) {
     // Intercept task status events
-    if (data.log.startsWith('[TASK_STATUS] ')) {
-      try {
-        const taskStatus = JSON.parse(data.log.substring(14));
-        if (agent.tasks) {
-          const taskIdx = agent.tasks.findIndex(t => t.name === taskStatus.name);
-          if (taskIdx >= 0) {
-            agent.tasks[taskIdx].status = taskStatus.status;
-            if (taskStatus.status === 'complete') {
-              const completedCount = agent.tasks.filter(t => t.status === 'complete').length;
-              agent.completedTasks = completedCount;
-              agent.progress = Math.round((completedCount / agent.totalTasks) * 100);
-            } else if (taskStatus.status === 'failed') {
-              agent.status = 'error';
-            }
-            io.emit('agent-updated', { id: data.id, ...agent });
-          }
-        }
-      } catch (e) { }
+    const taskStatus = parseTaskStatus(data.log);
+    if (taskStatus) {
+      await runService.recordTaskStatus(data.id, taskStatus).catch(error => console.warn('[Harness] Task status rejected:', error.message));
       return; // Do not push internal status to live logs
     }
-
-    if (!agent.logs) agent.logs = [];
-    agent.logs.push({ time: new Date().toISOString(), message: data.log });
-    // Keep only last 200 log lines
-    if (agent.logs.length > 200) agent.logs = agent.logs.slice(-200);
-    io.emit('agent-log', { id: data.id, log: data.log });
+    const safeLog = runService.redactForRun(data.id, data.log);
+    await runService.recordLog(data.id, { message: safeLog }).catch(error => console.warn('[Harness] Log rejected:', error.message));
+    io.emit('agent-log', { id: data.id, log: safeLog });
   }
 });
 
-vibesBridge.on('agent-error', (data) => {
-  const agent = agents.get(data.id);
-  if (agent) {
-    agent.status = 'error';
-    agent.error = data.error;
-    io.emit('agent-updated', { id: data.id, ...agent });
-  }
+vibesBridge.on('agent-error', async (data) => {
+  await runService.failExecution(data.id, { stage: 'process', reason: data.error, operationKey: `bridge-error:${data.error}` }).catch(error => console.warn('[Harness] Agent error rejected:', error.message));
 });
 
-vibesBridge.on('agent-exit', (data) => {
-  const agent = agents.get(data.id);
-  if (agent && agent.status === 'executing') {
-    agent.status = data.code === 0 ? 'complete' : 'error';
-    io.emit('agent-updated', { id: data.id, ...agent });
-  }
-});
+vibesBridge.on('agent-exit', data => agentController.onExit(data).catch(error => console.warn('[Harness] Exit rejected:', error.message)));
 
 // =========================================================================
 // AUTHENTICATION & USER MANAGEMENT API
@@ -1320,152 +1333,21 @@ io.on('connection', (socket) => {
   agents.forEach((agent, id) => snapshot.push({ id, ...agent }));
   socket.emit('agents-snapshot', snapshot);
 
-  // Create a new agent
-  socket.on('agent-create', (data) => {
-    const id = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-
-    // Dynamically decide whether to run a real Vibes agent or simulated demo
-    const hasLlmPrefs = data.llmPrefs && data.llmPrefs.provider && data.llmPrefs.provider !== 'disabled';
-    const isExplicitlyDisabled = data.llmPrefs && data.llmPrefs.provider === 'disabled';
+  // Durable lifecycle handlers share one tested error boundary and controller seam.
+  socket.on('agent-create', safeSocketHandler(socket, 'agent-create', async data => {
+    const isExplicitlyDisabled = data.llmPrefs?.provider === 'disabled';
     const useRealVibes = process.env.USE_VIBES === 'true' || (hasVibes && process.env.USE_VIBES !== 'false' && !isExplicitlyDisabled);
-
-    const agent = {
-      mission: data.mission || 'Unnamed Mission',
-      cwd: data.cwd || '~/',
-      status: 'planning',
-      progress: 0,
-      totalTasks: 0,
-      completedTasks: 0,
-      tasks: [],
-      logs: [],
-      createdAt: new Date().toISOString(),
-      useVibes: useRealVibes,
-      llmPrefs: data.llmPrefs,
-    };
-    agents.set(id, agent);
-    io.emit('agent-created', { id, ...agent });
-    console.log(`[Agent] Created: ${id} — "${agent.mission}" (mode: ${useRealVibes ? 'vibes' : 'demo'})`);
-
-    if (useRealVibes) {
-      // Real Vibes integration
-      handleVibesAgent(id, agent, data.llmPrefs);
-    } else {
-      // Demo simulation
-      handleDemoAgent(id, agent);
-    }
-  });
-
-  // Accept proposed tasks
-  socket.on('agent-accept', (data) => {
-    const agent = agents.get(data.id);
-    if (!agent) return;
-    agent.status = 'executing';
-    io.emit('agent-updated', { id: data.id, ...agent });
-
-    if (!agent.useVibes) {
-      simulateExecution(data.id, agent);
-    } else {
-      handleVibesExecution(data.id, agent);
-    }
-  });
-
-  // Decline proposed tasks
-  socket.on('agent-decline', (data) => {
+    return agentController.create(data, useRealVibes);
+  }));
+  socket.on('agent-accept', safeSocketHandler(socket, 'agent-accept', data => agentController.accept(data.id)));
+  socket.on('agent-decline', safeSocketHandler(socket, 'agent-decline', async data => {
     vibesBridge.terminate(data.id);
-    agents.delete(data.id);
+    await runService.declinePlan(data.id, { reason: data.reason || 'operator declined', operationKey: `decline:${data.id}` });
     io.emit('agent-removed', { id: data.id });
-  });
-
-  // Terminate agent
-  socket.on('agent-terminate', (data) => {
-    const agent = agents.get(data.id);
-    if (agent) {
-      agent.status = 'terminated';
-      vibesBridge.terminate(data.id);
-      if (activeIntervals.has(data.id)) {
-        clearInterval(activeIntervals.get(data.id));
-        activeIntervals.delete(data.id);
-      }
-      io.emit('agent-updated', { id: data.id, ...agent });
-      setTimeout(() => {
-        agents.delete(data.id);
-        io.emit('agent-removed', { id: data.id });
-      }, 800);
-    }
-  });
-
-  // Retry full agent execution
-  socket.on('agent-retry', (data) => {
-    const agent = agents.get(data.id);
-    if (!agent) return;
-    
-    if (activeIntervals.has(data.id)) {
-      clearInterval(activeIntervals.get(data.id));
-      activeIntervals.delete(data.id);
-    }
-    
-    agent.status = 'planning';
-    agent.progress = 0;
-    agent.completedTasks = 0;
-    agent.tasks = [];
-    agent.logs = [];
-    agent.error = null;
-    io.emit('agent-updated', { id: data.id, ...agent });
-
-    if (!agent.useVibes) {
-      handleDemoAgent(data.id, agent, true);
-    } else {
-      // Terminate any existing instance first
-      vibesBridge.terminate(data.id);
-      // Start a new instance
-      handleVibesAgent(data.id, agent, agent.llmPrefs, true);
-    }
-  });
-
-  // Retry from a specific task index
-  socket.on('agent-retry-task', (data) => {
-    const agent = agents.get(data.id);
-    if (!agent || !agent.tasks) return;
-    const taskIdx = agent.tasks.findIndex(t => t.id === data.taskId);
-    if (taskIdx === -1) return;
-
-    // Reset this task and all subsequent tasks to pending
-    for (let i = taskIdx; i < agent.tasks.length; i++) {
-      agent.tasks[i].status = 'pending';
-    }
-
-    agent.status = 'executing';
-    
-    // Recalculate progress/completedTasks
-    const completedCount = agent.tasks.filter(t => t.status === 'complete').length;
-    agent.completedTasks = completedCount;
-    agent.progress = Math.round((completedCount / agent.totalTasks) * 100);
-
-    io.emit('agent-updated', { id: data.id, ...agent });
-
-    if (!agent.useVibes) {
-      simulateExecution(data.id, agent, taskIdx);
-    } else {
-      const instance = vibesBridge.instances.get(data.id);
-      if (instance) {
-        // Resolve the pending intervention with 'retry' action and the taskId
-        instance.resolveIntervention('retry', undefined, data.taskId)
-          .catch(err => {
-            console.error(`[Vibes] Failed to resolve intervention for task retry:`, err.message);
-          });
-      } else {
-        // Process is dead. Let's restart the agent.
-        console.warn(`[Vibes] Process not running. Performing full retry instead.`);
-        agent.status = 'planning';
-        agent.progress = 0;
-        agent.completedTasks = 0;
-        agent.tasks = [];
-        agent.logs = [];
-        io.emit('agent-updated', { id: data.id, ...agent });
-        handleVibesAgent(data.id, agent, agent.llmPrefs);
-      }
-    }
-  });
+  }));
+  socket.on('agent-terminate', safeSocketHandler(socket, 'agent-terminate', data => agentController.terminate(data.id)));
+  socket.on('agent-retry', safeSocketHandler(socket, 'agent-retry', data => agentController.retry(data.id)));
+  socket.on('agent-retry-task', safeSocketHandler(socket, 'agent-retry-task', data => agentController.retryTask(data.id, data.taskId)));
 
   // Request logs for an agent
   socket.on('agent-logs', (data) => {
@@ -1552,152 +1434,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── Real Vibes Agent Handler ──
-async function handleVibesAgent(id, agent, llmPrefs, autoLaunch = false) {
-  try {
-    console.log(`[Vibes] Starting real agent planning for: ${agent.mission}`);
-    const result = await vibesBridge.createAgent(id, agent.cwd, agent.mission, llmPrefs);
-
-    if (result && result.content) {
-      const text = typeof result.content === 'string'
-        ? result.content
-        : (result.content[0]?.text || JSON.stringify(result.content));
-
-      try {
-        const tasks = JSON.parse(text);
-        agent.tasks = tasks;
-        agent.totalTasks = tasks.length;
-        if (autoLaunch) {
-          agent.status = 'executing';
-          io.emit('agent-updated', { id, ...agent });
-          handleVibesExecution(id, agent);
-        } else {
-          agent.status = 'review';
-          io.emit('agent-updated', { id, ...agent });
-        }
-      } catch (e) {
-        agent.status = 'error';
-        agent.error = 'Failed to parse mission plan JSON.';
-        io.emit('agent-updated', { id, ...agent });
-      }
-    }
-  } catch (err) {
-    console.error(`[Vibes] Agent ${id} failed:`, err.message);
-    agent.status = 'error';
-    agent.error = err.message;
-    io.emit('agent-updated', { id, ...agent });
-  }
-}
-
-async function handleVibesExecution(id, agent) {
-  try {
-    const result = await vibesBridge.executePlannedMission(id);
-    if (result && result.content) {
-      const text = typeof result.content === 'string'
-        ? result.content
-        : (result.content[0]?.text || JSON.stringify(result.content));
-
-      agent.status = 'complete';
-      agent.progress = 100;
-      agent.completedTasks = agent.totalTasks;
-      agent.logs.push({ time: new Date().toISOString(), message: `Mission result: ${text}` });
-      io.emit('agent-updated', { id, ...agent });
-    }
-  } catch (err) {
-    console.error(`[Vibes] Agent execution failed:`, err.message);
-    agent.status = 'error';
-    agent.error = err.message;
-    io.emit('agent-updated', { id, ...agent });
-  }
-}
-
-// ── Demo Agent Handler ──
-function handleDemoAgent(id, agent, autoLaunch = false) {
-  setTimeout(() => {
-    if (!agents.has(id)) return;
-    const tasks = generateDemoTasks(agent.mission);
-    agent.tasks = tasks;
-    agent.totalTasks = tasks.length;
-    if (autoLaunch) {
-      agent.status = 'executing';
-      io.emit('agent-updated', { id, ...agent });
-      simulateExecution(id, agent, 0);
-    } else {
-      agent.status = 'review';
-      io.emit('agent-updated', { id, ...agent });
-    }
-  }, 2500);
-}
-
-// Demo task generation
-function generateDemoTasks(mission) {
-  const taskTemplates = [
-    'Analyze project structure and dependencies',
-    'Create implementation plan',
-    'Setup core module scaffolding',
-    'Implement primary logic',
-    'Write unit tests',
-    'Integrate with existing codebase',
-    'Run validation suite',
-    'Polish and finalize',
-  ];
-  const count = 4 + Math.floor(Math.random() * 5);
-  return taskTemplates.slice(0, count).map((name, i) => ({
-    id: i + 1,
-    name,
-    status: 'pending',
-  }));
-}
-
-// Keep track of active simulation intervals
-const activeIntervals = new Map();
-
-// Simulated execution starting from a specific task index
-function simulateExecution(id, agent, startIdx = 0) {
-  if (activeIntervals.has(id)) {
-    clearInterval(activeIntervals.get(id));
-  }
-
-  let taskIndex = startIdx;
-  const interval = setInterval(() => {
-    const currentAgent = agents.get(id);
-    if (!currentAgent || currentAgent.status === 'terminated' || currentAgent.status === 'complete') {
-      clearInterval(interval);
-      activeIntervals.delete(id);
-      return;
-    }
-
-    if (currentAgent.tasks && taskIndex < currentAgent.tasks.length) {
-      const currentIdx = taskIndex;
-      taskIndex++; // Increment immediately for the next interval iteration
-
-      currentAgent.tasks[currentIdx].status = 'in-progress';
-      io.emit('agent-updated', { id, ...currentAgent });
-
-      setTimeout(() => {
-        const liveAgent = agents.get(id);
-        if (!liveAgent || !liveAgent.tasks || !liveAgent.tasks[currentIdx]) return;
-
-        liveAgent.tasks[currentIdx].status = 'complete';
-        const completedCount = liveAgent.tasks.filter(t => t.status === 'complete').length;
-        liveAgent.completedTasks = completedCount;
-        liveAgent.progress = Math.round((completedCount / liveAgent.totalTasks) * 100);
-
-        if (liveAgent.completedTasks >= liveAgent.totalTasks) {
-          liveAgent.status = 'complete';
-        }
-
-        io.emit('agent-updated', { id, ...liveAgent });
-      }, 2000 + Math.random() * 3000);
-    } else if (currentAgent.tasks && taskIndex >= currentAgent.tasks.length) {
-      clearInterval(interval);
-      activeIntervals.delete(id);
-    }
-  }, 4000 + Math.random() * 2000);
-
-  activeIntervals.set(id, interval);
-}
-
 // Cleanup on exit
 process.on('SIGINT', () => {
   console.log('\n[Dashboard] Shutting down...');
@@ -1710,7 +1446,9 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-server.listen(PORT, HOST, () => {
+const startupPromise = Promise.all([restorePromise, verificationPolicy]);
+
+startupPromise.then(() => server.listen(PORT, HOST, () => {
   const usingHttps = fs.existsSync(certPath) && fs.existsSync(keyPath);
   const httpsProt = usingHttps ? 'https' : 'http';
   const httpProt = 'http';
@@ -1727,4 +1465,7 @@ server.listen(PORT, HOST, () => {
     console.log(`  ✦ No SSL certs found. Mic may not work on LAN. Run generate_cert.sh`);
   }
   console.log();
+})).catch(error => {
+  console.error('[Harness] Startup failed:', error);
+  process.exitCode = 1;
 });

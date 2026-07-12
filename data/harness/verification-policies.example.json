@@ -1,0 +1,16 @@
+{
+  "executablePaths": [
+    "/usr/bin/node"
+  ],
+  "recipes": {
+    "project-tests": {
+      "command": "/usr/bin/node",
+      "args": [
+        "--test"
+      ],
+      "timeoutMs": 120000,
+      "maxOutputBytes": 131072,
+      "artifacts": []
+    }
+  }
+}
