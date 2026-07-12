@@ -59,6 +59,9 @@ The `VibesBridge` handles child process spawning:
 * Translates between dashboard settings and Vibes model specifications.
 * Pipes log lines and progress to client sockets.
 
+### `server/coordination-adapter.js`
+Dependency-injected boundary to local Agent Communication MCP. Production uses `AGENT_COMM_MCP_URL`, `AGENT_COMM_MCP_TOKEN`, and a bounded timeout; tests inject fixture clients. Upstream tool names live in one `TOOL_NAMES` mapping. The adapter normalizes provider readiness and activity, derives approval/verification/artifact projections, and emits stable unavailable reasons without exposing secrets or raw errors. Its protected `GET /api/control-center` route returns `503` rather than simulated data when unavailable.
+
 ---
 
 ## 🎨 Frontend Architecture
@@ -124,3 +127,8 @@ Modules are manifest-driven views that the core loads. Key panels include:
 ### `module-manager`
 * **Path**: `modules/module-manager/`
 * Controls sidebar positioning and dynamically manages panel listings.
+
+### `control-center`
+* **Path**: `modules/control-center/`
+* Displays provider readiness, recent activity, pending approvals, verification outcomes, and artifact references.
+* Uses a Node-testable deterministic view model and safe DOM creation/`textContent` for every live value. Explicit empty and unavailable states replace demo or random values; responsive glass panels collapse at narrow widths.

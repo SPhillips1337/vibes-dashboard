@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { Server } = require('socket.io');
 const { VibesBridge } = require('./vibes-bridge');
+const { createAdapterFromEnv, createControlCenterHandler } = require('./coordination-adapter');
 const { spawn, spawnSync } = require('child_process');
 
 const app = express();
@@ -39,6 +40,7 @@ const hasVibes = fs.existsSync(serverScript);
 const USE_VIBES = process.env.USE_VIBES === 'true' || (hasVibes && process.env.USE_VIBES !== 'false');
 
 const auth = require('./auth');
+const coordinationAdapter = createAdapterFromEnv();
 
 // Custom Cookie Parser Middleware
 app.use((req, res, next) => {
@@ -376,6 +378,9 @@ app.get('/api/agents', (req, res) => {
   });
   res.json(list);
 });
+
+// REST API — normalized, read-only local coordination projection
+app.get('/api/control-center', createControlCenterHandler(coordinationAdapter));
 
 // ── Audio API ──
 app.get('/api/audio', (req, res) => {

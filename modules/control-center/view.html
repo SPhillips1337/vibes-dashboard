@@ -1,0 +1,40 @@
+<section class="control-center" aria-labelledby="control-center-title">
+  <header class="control-center__hero">
+    <div>
+      <p class="control-center__eyebrow">LOCAL AGENT CONTROL PLANE</p>
+      <h2 id="control-center-title">Coordination status</h2>
+      <p id="control-center-status" class="control-center__status" role="status">Loading real coordination data…</p>
+    </div>
+    <button id="control-center-refresh" class="control-center__refresh" type="button">Refresh</button>
+  </header>
+
+  <div class="control-center__metrics" aria-label="Control center metrics">
+    <article><span>Ready providers</span><strong id="control-center-ready-count">—</strong></article>
+    <article><span>Recent activity</span><strong id="control-center-activity-count">—</strong></article>
+    <article><span>Pending approvals</span><strong id="control-center-approval-count">—</strong></article>
+    <article><span>Verification outcomes</span><strong id="control-center-verification-count">—</strong></article>
+  </div>
+
+  <div class="control-center__grid">
+    <section class="control-center__panel control-center__panel--wide" aria-labelledby="control-center-providers-title">
+      <h3 id="control-center-providers-title">Provider readiness</h3>
+      <div id="control-center-providers" class="control-center__list"></div>
+    </section>
+    <section class="control-center__panel" aria-labelledby="control-center-approvals-title">
+      <h3 id="control-center-approvals-title">Pending approvals</h3>
+      <div id="control-center-approvals" class="control-center__list"></div>
+    </section>
+    <section class="control-center__panel" aria-labelledby="control-center-verifications-title">
+      <h3 id="control-center-verifications-title">Verification outcomes</h3>
+      <div id="control-center-verifications" class="control-center__list"></div>
+    </section>
+    <section class="control-center__panel control-center__panel--wide" aria-labelledby="control-center-activity-title">
+      <h3 id="control-center-activity-title">Recent activity</h3>
+      <div id="control-center-activity" class="control-center__list"></div>
+    </section>
+    <section class="control-center__panel control-center__panel--wide" aria-labelledby="control-center-artifacts-title">
+      <h3 id="control-center-artifacts-title">Artifact references</h3>
+      <div id="control-center-artifacts" class="control-center__list control-center__artifacts"></div>
+    </section>
+  </div>
+</section>

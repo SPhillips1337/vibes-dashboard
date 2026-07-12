@@ -1,6 +1,6 @@
 # API Reference
 
-All API requests are prefixed with `/api`. Rate limiting is implemented for authentication endpoints, and standard routes are protected by session-based authentication guards and CSRF token validation.
+All API requests are prefixed with `/api`. Rate limiting is implemented for authentication endpoints, and standard routes are protected by session-based authentication guards and CSRF token validation. Read-only protected `GET` routes require a valid `__Host-session-id` cookie but no CSRF header.
 
 ---
 
@@ -43,7 +43,7 @@ Retrieves a valid CSRF token mapped to the session for header verification on st
 ## 🤖 Vibes Agents & Process Bridge
 
 ### `GET /api/agents`
-Returns a list of all active, planning, and completed Vibes agents.
+Returns the legacy agent projection of durable harness runs. The compatibility `agents` cache is rebuilt from append-only run events at startup; it is not authoritative. Interrupted work is returned with `status: "interrupted"` and is never automatically resumed. Execution success claims appear as `verifying` until an external verifier passes.
 * **Response**: `200 OK`
   ```json
   [
@@ -73,6 +73,23 @@ Queries the live execution status of a specific running agent process via the br
     "status": "Agent running, 4/8 tasks complete"
   }
   ```
+
+### `GET /api/control-center`
+Returns the normalized read-only projection from Agent Communication MCP. MCP authentication remains server-side; bearer tokens, auth headers, environment values, endpoint URLs, and raw upstream errors are never returned.
+* **Response**: `200 OK` when live data is available. Arrays may legitimately be empty.
+  ```json
+  {
+    "available": true,
+    "providers": [],
+    "activity": [],
+    "pendingApprovals": [],
+    "verificationOutcomes": [],
+    "artifactReferences": [],
+    "updatedAt": "2026-07-12T10:03:00.000Z"
+  }
+  ```
+* **Response**: `503 Service Unavailable` with `reason` set to `not_configured` or `coordination_service_unreachable`.
+* **Response**: `401 Unauthorized` without a valid dashboard session.
 
 ---
 
