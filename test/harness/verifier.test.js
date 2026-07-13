@@ -89,6 +89,21 @@ test('rejects direct injection surfaces even if verifier is called without polic
   await assert.rejects(()=>createVerifier().verify({workspace:dir,selection:{recipes:[recipe(['ok;rm'])],artifacts:[]}}),/unsafe/i);
 });
 
+test('revalidates executable mode and ctime immediately before spawn',async t=>{
+  const dir=await workspace(t); const exe=path.join(dir,'node'); await fs.copyFile(process.execPath,exe); await fs.chmod(exe,0o700);
+  const stat=await fs.lstat(exe); const configured=recipe(['--version'],{command:exe,executableIdentity:{dev:stat.dev,ino:stat.ino,mtimeMs:stat.mtimeMs,ctimeMs:stat.ctimeMs,size:stat.size}});
+  await fs.chmod(exe,0o722);
+  await assert.rejects(()=>createVerifier().verify({workspace:dir,selection:{recipes:[configured],artifacts:[]}}),/writable|identity changed/i);
+});
+
+test('rejects artifact when a parent changes during validation',async t=>{
+  const dir=await workspace(t); await fs.mkdir(path.join(dir,'parent')); await fs.writeFile(path.join(dir,'parent','ok.txt'),'ok');
+  const realFs={...fs}; let swapped=false;
+  const fsOps={...fs,async open(file,...args){if(!swapped&&String(file).endsWith('ok.txt')){swapped=true;await fs.rename(path.join(dir,'parent'),path.join(dir,'old-parent'));await fs.mkdir(path.join(dir,'parent'));await fs.writeFile(path.join(dir,'parent','ok.txt'),'evil');}return realFs.open(file,...args);}};
+  const result=await createVerifier({fsOps}).verify({workspace:dir,selection:{recipes:[],artifacts:['parent/ok.txt']}});
+  assert.equal(result.artifacts[0].valid,false); assert.match(result.artifacts[0].reason,/changed|race|containment/);
+});
+
 test('returns explicit no_checks_configured and fails closed by default',async t=>{
  const dir=await workspace(t);const result=await createVerifier().verify({workspace:dir,selection:{recipes:[],artifacts:[],noChecksConfigured:true}});
  assert.equal(result.passed,false);assert.equal(result.cause,'no_checks_configured');

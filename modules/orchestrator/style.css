@@ -681,3 +681,26 @@
 .log-line { white-space: pre-wrap; word-break: break-all; }
 .log-line .log-time { color: rgba(255, 255, 255, 0.2); margin-right: 8px; }
 .log-empty { color: rgba(255, 255, 255, 0.15); font-style: italic; }
+
+/* ── Durable run Timeline / Evidence ── */
+.harness-tabs { display:flex; gap:8px; margin-top:24px; padding:6px; border:1px solid var(--border); border-radius:16px; background:var(--surface); backdrop-filter:blur(12px); }
+.harness-tab { flex:1; padding:10px 16px; border:1px solid transparent; border-radius:12px; color:var(--text-secondary); background:transparent; font:600 .875rem 'Inter',sans-serif; cursor:pointer; transition:var(--transition); }
+.harness-tab.is-active { color:var(--text-primary); border-color:rgba(96,165,250,.45); background:rgba(59,130,246,.16); }
+.harness-tab:focus-visible,.evidence-reference:focus-visible,.load-more:focus-visible { outline:3px solid var(--secondary); outline-offset:2px; }
+.harness-panel { display:grid; gap:12px; margin:12px 0 24px; padding:16px; min-height:96px; border:1px solid var(--border); border-radius:16px; background:var(--surface); backdrop-filter:blur(12px); }
+.harness-panel.hidden { display:none; }
+.timeline-item,.evidence-card { display:grid; gap:7px; padding:14px 16px; border:1px solid var(--border); border-radius:16px; background:rgba(20,20,25,.7); transition:var(--transition); overflow-wrap:anywhere; }
+.timeline-item { border-inline-start:4px solid var(--primary); }
+.timeline-item.event-verification-passed { border-inline-start-color:var(--success); }
+.timeline-item.event-verification-failed { border-inline-start-color:var(--danger); }
+.timeline-item.is-highlighted { border-color:var(--secondary); box-shadow:0 0 0 3px rgba(96,165,250,.25); }
+.timeline-meta { color:var(--text-secondary); font-size:.75rem; }
+.timeline-item p,.evidence-card p { margin:0; white-space:pre-wrap; }
+.evidence-reference { justify-self:start; padding:4px 8px; border:1px solid rgba(96,165,250,.35); border-radius:8px; color:var(--secondary); background:rgba(59,130,246,.12); cursor:pointer; }
+.evidence-status { margin:0; font-family:'Outfit',sans-serif; }
+.evidence-status.status-passed { color:var(--success); }
+.evidence-status.status-failed,.harness-state.is-error { color:var(--danger); }
+.harness-state { margin:auto; color:var(--text-secondary); text-align:center; }
+.load-more { justify-self:center; }
+@media (max-width:700px) { .harness-panel { padding:10px; } .timeline-item,.evidence-card { padding:12px; } }
+@media (prefers-reduced-motion:reduce) { .timeline-item,.harness-tab { transition:none; } }

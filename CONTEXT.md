@@ -82,6 +82,7 @@
 | Voice recognition | Web Speech API (Chrome/Edge) | No server-side dependency; adequate for local use |
 | Durable harness runs | Append-only versioned JSONL + atomic JSON snapshots | Auditable restart recovery without a database; verifier events exclusively grant completion |
 | Harness verification policy | Server-owned allowlisted argv recipes + fail-closed real-run default | Agents may request recipe IDs but cannot select commands, policy paths, cwd, or limits |
+| Harness child/checkpoint retention | Shallow depth-4 lineage, metadata-only checkpoints, dry-run retention | Prevent recursive explosion, forged lineage, unsafe rollback, and implicit deletion |
 
 See `docs/adr/` for full ADR files.
 

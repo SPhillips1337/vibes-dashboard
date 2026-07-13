@@ -11,6 +11,7 @@ const { toAgentProjection, parseTaskStatus } = require('./harness/agent-compat')
 const { AgentController, safeSocketHandler } = require('./harness/agent-controller');
 const { loadVerificationPolicy, selectVerification } = require('./harness/verification-policy');
 const { createVerifier } = require('./harness/verifier');
+const { createHarnessHandlers } = require('./harness-api');
 const { spawn, spawnSync } = require('child_process');
 
 const app = express();
@@ -90,6 +91,7 @@ const agents = new Map();
 const harnessRoot = process.env.HARNESSES_ROOT || path.join(__dirname, '..', 'data', 'harness', 'runs');
 const runService = new RunService({
   store: new RunStore({ root: harnessRoot }),
+  enableDestructiveRetention: process.env.HARNESSES_RETENTION_DELETE_ENABLED === 'true',
   emit: (event, run) => {
     const projection = toAgentProjection(run);
     agents.set(run.id, projection);
@@ -104,11 +106,11 @@ const restorePromise = runService.restoreRuns().then(runs => {
 }).catch(error => { console.error('[Harness] Restore failed:', error); throw error; });
 
 // Vibes Bridge (real orchestration)
-const vibesBridge = new VibesBridge();
+const vibesBridge = new VibesBridge({ onSensitiveValues: (id, values) => runService.registerSensitiveValues(id, values) });
 const policyPath = process.env.HARNESSES_VERIFICATION_POLICY;
-const trustedPolicyRoots = (process.env.HARNESSES_TRUSTED_POLICY_ROOTS || '').split(path.delimiter).filter(Boolean);
+const policyRoot = path.resolve(process.env.HARNESSES_VERIFICATION_POLICY_ROOT || path.join(__dirname, '..', 'config', 'verification'));
 const verificationPolicy = policyPath
-  ? loadVerificationPolicy({ policyPath, trustedPolicyRoots, harnessWorkspaces: [harnessRoot] })
+  ? loadVerificationPolicy({ policyPath, trustedPolicyRoots: [policyRoot], harnessWorkspaces: [harnessRoot] })
   : loadVerificationPolicy({ policy: { executablePaths: [], recipes: {} } });
 const verifier = createVerifier();
 const agentController = new AgentController({
@@ -391,6 +393,15 @@ app.get('/api/agents', (req, res) => {
   });
   res.json(list);
 });
+
+// Bounded durable harness read model (authentication is enforced by the /api guard).
+const harnessHandlers = createHarnessHandlers(runService);
+app.get('/api/harness/runs', harnessHandlers.list);
+app.get('/api/harness/runs/:id', harnessHandlers.detail);
+app.get('/api/harness/runs/:id/events', harnessHandlers.events);
+app.get('/api/harness/runs/:id/evidence', harnessHandlers.evidence);
+app.get('/api/harness/runs/:id/children', harnessHandlers.children);
+app.get('/api/harness/runs/:id/export', harnessHandlers.exportRun);
 
 // REST API — normalized, read-only local coordination projection
 app.get('/api/control-center', createControlCenterHandler(coordinationAdapter));

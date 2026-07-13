@@ -5,6 +5,7 @@ const { artifactPath } = require('./verification-policy');
 
 const SAFE_PREF_FIELDS = ['provider', 'hostUrl', 'model', 'maxTokens'];
 const RECIPE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const TASK_STATUSES = new Set(['pending','running','complete','failed']);
 
 function safeLlmMetadata(value = {}) {
   return Object.fromEntries(SAFE_PREF_FIELDS.filter(key => value[key] !== undefined).map(key => [key, value[key]]));
@@ -20,13 +21,17 @@ function responseText(result) {
 function parsePlan(text) {
   let value;
   try { value = JSON.parse(text); } catch { return null; }
-  if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.tasks)) return null;
+  if (Array.isArray(value)) value={tasks:value};
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key=>!['tasks','verificationChecks','declaredArtifacts','requiredChildRunIds'].includes(key)) || !Array.isArray(value.tasks) || value.tasks.length>256) return null;
+  const TASK_KEYS=new Set(['id','name','title','description','status','parentId','dependencies']);
+  if (value.tasks.some(task=>!task||typeof task!=='object'||Array.isArray(task)||Object.keys(task).some(key=>!TASK_KEYS.has(key))||typeof task.id!=='string'||task.id.length<1||task.id.length>128||!['name','title'].some(key=>typeof task[key]==='string'&&task[key].length>0&&task[key].length<=1024)||['name','title'].some(key=>task[key]!==undefined&&(typeof task[key]!=='string'||task[key].length<1||task[key].length>1024))||(task.description!==undefined&&(typeof task.description!=='string'||task.description.length>4096))||(task.status!==undefined&&!TASK_STATUSES.has(task.status))||(task.parentId!==undefined&&task.parentId!==null&&(typeof task.parentId!=='string'||task.parentId.length<1||task.parentId.length>128))||(task.dependencies!==undefined&&(!Array.isArray(task.dependencies)||task.dependencies.length>64||task.dependencies.some(id=>typeof id!=='string'||id.length<1||id.length>128))))) return null;
   if (value.verificationChecks !== undefined && (!Array.isArray(value.verificationChecks) || value.verificationChecks.some(id => typeof id !== 'string' || !RECIPE_ID.test(id)))) return null;
+  if (value.requiredChildRunIds !== undefined && (!Array.isArray(value.requiredChildRunIds) || value.requiredChildRunIds.length>100 || value.requiredChildRunIds.some(id=>typeof id!=='string'||!RECIPE_ID.test(id)))) return null;
   let declaredArtifacts;
   try {
     declaredArtifacts = value.declaredArtifacts === undefined ? undefined : [...new Set(value.declaredArtifacts.map(item => artifactPath(typeof item === 'string' ? item : item?.path)))];
   } catch { return null; }
-  return { tasks:value.tasks, ...(value.verificationChecks ? {verificationChecks:[...new Set(value.verificationChecks)]} : {}), ...(declaredArtifacts ? {declaredArtifacts} : {}) };
+  return { tasks:value.tasks, ...(value.verificationChecks ? {verificationChecks:[...new Set(value.verificationChecks)]} : {}), ...(declaredArtifacts ? {declaredArtifacts} : {}), ...(value.requiredChildRunIds ? {requiredChildRunIds:[...new Set(value.requiredChildRunIds)]} : {}) };
 }
 
 function safeSocketHandler(socket, operation, handler, logger = console) {
@@ -138,14 +143,27 @@ class AgentController {
       let result;
       try{result=await this.verify(await this.runService.getRun(id));if(!result||typeof result.passed!=='boolean')throw new Error('verifier returned an invalid result');}
       catch(error){result={passed:false,cause:'verifier_error',reason:error.message,checks:[],artifacts:[]};}
+      const persisted=await this.runService.getRun(id);
+      const requiredIds=Array.isArray(persisted.plan?.requiredChildRunIds)?persisted.plan.requiredChildRunIds:[];
+      const children=typeof this.runService.evaluateRequiredChildren==='function'?await this.runService.evaluateRequiredChildren(id,requiredIds):{passed:true,evidence:[]};
+      if(!children.passed) result={...result,passed:false,cause:'required_child_unverified',reason:children.reason||'A required child run is not independently verified'};
+      if(requiredIds.length) result.checks=[{id:'required-children',name:'Required child runs',passed:children.passed,reason:children.reason||null,children:children.evidence},...(result.checks||[])];
       const evidenceEventIds=[];
-      for(const check of result.checks||[]){
-        const receipt=await this.runService.recordVerificationCheck?.(id,{...check,checkId:check.id||check.name||'check',passed:check.passed===true,exitCode:check.exitCode??null,reason:check.reason||null,attempt:run.attempt});
-        if(receipt?.eventId)evidenceEventIds.push(receipt.eventId);
-      }
-      for(const artifact of result.artifacts||[]){
-        const receipt=await this.runService.recordArtifactValidation(id,{artifactId:artifact.id||artifact.path,path:artifact.path,valid:artifact.valid,reason:artifact.reason||null,attempt:run.attempt});
-        if(receipt?.eventId)evidenceEventIds.push(receipt.eventId);
+      try {
+        for(const check of (result.checks||[]).slice(0,16)){
+          const receipt=await this.runService.recordVerificationCheck?.(id,{...check,checkId:check.id||check.name||'check',passed:check.passed===true,exitCode:check.exitCode??null,reason:check.reason||null,attempt:run.attempt});
+          if(receipt?.eventId)evidenceEventIds.push(receipt.eventId);
+        }
+        for(const artifact of (result.artifacts||[]).slice(0,16)){
+          const receipt=await this.runService.recordArtifactValidation(id,{artifactId:artifact.id||artifact.path,path:artifact.path,valid:artifact.valid,reason:artifact.reason||null,attempt:run.attempt});
+          if(receipt?.eventId)evidenceEventIds.push(receipt.eventId);
+        }
+      } catch(error) {
+        result={passed:false,cause:'evidence_too_large',reason:'Verifier evidence could not be encoded safely',checks:[],artifacts:[],retryable:true};
+        try {
+          const fallback=await this.runService.recordVerificationCheck(id,{checkId:'evidence-encoding',passed:false,reason:'evidence_too_large',attempt:run.attempt});
+          if(fallback?.eventId)evidenceEventIds.push(fallback.eventId);
+        } catch {}
       }
       const failureRecord=result.passed?undefined:{
         terminalCause:result.cause||result.reason||'verification_failed',

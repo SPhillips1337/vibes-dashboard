@@ -1,4 +1,8 @@
-# Testing Guide
+# Testing
+
+## Phase 4 harness reads and UI
+
+Run `npm test` for the complete Node suite or `npm run test:harness` for durable-harness coverage. `test/harness/harness-api.test.js` covers pagination validation, traversal, stable errors, bounded log tails, and evidence envelopes. `test/orchestrator-render.test.js` covers Timeline/Evidence view models and statically prohibits `innerHTML` assignment in orchestrator live-data paths. Browser smoke should additionally exercise authenticated tab keyboard navigation and evidence-to-timeline focus.
 
 ## Automated Tests
 
@@ -10,6 +14,8 @@ npm run test:harness     # durable-harness contract, store, and projector tests
 ```
 
 Harness tests live in `test/harness/*.test.js`; secret-free replay fixtures live in `test/fixtures/harness-runs/`. The suite covers event validation/redaction, filesystem durability and recovery, concurrent append serialization, path containment, and deterministic run projection.
+
+`test/harness/phase5-6.test.js` covers operation-key conflict and crash repair, child isolation/depth and targeted required-child fail-closed outcomes, event-first checkpoint repair/resume, independent age/count/byte retention with lineage/quarantine safety, exact serialized export bounds, and `.env` credential echo redaction.
 
 Production CommonJS files can be syntax-checked directly:
 

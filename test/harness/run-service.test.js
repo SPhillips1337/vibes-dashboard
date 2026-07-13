@@ -95,7 +95,7 @@ test('persists allowlisted plan and verification documents', async t => {
   assert.equal(JSON.parse(await fs.readFile(path.join(root,run.id,'verification.json'),'utf8')).passed,true);
 });
 
-test('verification final events and persisted documents are bounded and emitted before document write', async t => {
+test('verification evidence is strictly bounded and document write failure is repairable after terminal event', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'run-service-bounded-'));
   t.after(() => fs.rm(root,{recursive:true,force:true}));
   let sequence = 0; const emitted = [];
@@ -104,7 +104,12 @@ test('verification final events and persisted documents are bounded and emitted 
   const service = new RunService({ store: new RunStore({ root, fsOps }), idGenerator: prefix => `${prefix}-${++sequence}`, emit: event => emitted.push(event) });
   const run=await service.createRun({mission:'bounded'});
   await service.recordPlan(run.id,{tasks:[]}); await service.approvePlan(run.id); await service.startExecution(run.id); await service.claimExecutionComplete(run.id); await service.startVerification(run.id);
-  const large='a'.repeat(80*1024);
+  const large='a'.repeat(1024*1024);
+  await service.recordVerificationCheck(run.id,{id:large,name:large,stdout:large,stderr:large,reason:large,passed:true});
+  await service.recordArtifactValidation(run.id,{artifactId:large,path:large,reason:large,valid:true});
+  const evidence=emitted.slice(-2);
+  assert.ok(evidence.every(event=>Buffer.byteLength(JSON.stringify(event))<=64*1024));
+  assert.ok(Buffer.byteLength(JSON.stringify(evidence[0].data))<=16*1024);
   await service.finishVerification(run.id,{passed:true,checks:Array.from({length:40},(_,i)=>({id:`c${i}`,stdout:large,stderr:large,passed:true})),artifacts:Array.from({length:40},(_,i)=>({path:`a${i}.txt`,valid:true,sha256:'x'.repeat(64)}))});
   const finalEvent=emitted.at(-1);
   assert.equal(finalEvent.type,'verification.passed');
@@ -117,9 +122,33 @@ test('verification final events and persisted documents are bounded and emitted 
   const second=await service.createRun({mission:'doc failure'});
   await service.recordPlan(second.id,{tasks:[]}); await service.approvePlan(second.id); await service.startExecution(second.id); await service.claimExecutionComplete(second.id); await service.startVerification(second.id);
   failVerificationDocument = true;
-  await assert.rejects(()=>service.finishVerification(second.id,{passed:true,checks:[{id:'ok',stdout:'ok',passed:true}],artifacts:[]}),/doc write failed/);
+  await assert.rejects(()=>service.finishVerification(second.id,{passed:true,checks:[{id:'ok',stdout:'ok',passed:true}],artifacts:[],operationKey:'second-finish'}),/doc write failed/);
   assert.equal(emitted.at(-1).type,'verification.passed');
   assert.equal((await service.getRun(second.id)).status,'completed');
+  failVerificationDocument = false;
+  const retried=await service.finishVerification(second.id,{passed:true,checks:[{id:'ok',stdout:'ok',passed:true}],artifacts:[],operationKey:'second-finish'});
+  assert.equal(retried.status,'completed');
+  assert.equal(JSON.parse(await fs.readFile(path.join(root,second.id,'verification.json'),'utf8')).passed,true);
+});
+
+test('terminal append failure writes no final document or terminal state',async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'run-service-terminal-append-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  let fail=false,n=0;
+  const fsOps={...fs,async appendFile(file,payload,...rest){if(fail&&String(payload).includes('verification.passed'))throw new Error('terminal append failed');return fs.appendFile(file,payload,...rest);}};
+  const store=new RunStore({root,fsOps});const service=new RunService({store,idGenerator:p=>`${p}-${++n}`});
+  const run=await service.createRun({mission:'append'});await service.recordPlan(run.id,{tasks:[]});await service.approvePlan(run.id);await service.startExecution(run.id);await service.claimExecutionComplete(run.id);await service.startVerification(run.id);
+  fail=true;await assert.rejects(()=>service.finishVerification(run.id,{passed:true,operationKey:'finish'}),/terminal append failed/);
+  assert.equal((await service.getRun(run.id)).status,'verifying');
+  await assert.rejects(()=>fs.stat(path.join(root,run.id,'verification.json')),error=>error.code==='ENOENT');
+});
+
+test('restore regenerates a missing verification document from terminal event',async t=>{
+  const {root,service}=await fixture();t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const run=await service.createRun({mission:'restore'});await service.recordPlan(run.id,{tasks:[]});await service.approvePlan(run.id);await service.startExecution(run.id);await service.claimExecutionComplete(run.id);await service.startVerification(run.id);
+  await service.finishVerification(run.id,{passed:true,checks:[{id:'ok',passed:true}],operationKey:'finish'});
+  await fs.rm(path.join(root,run.id,'verification.json'));
+  const restored=new RunService({store:new RunStore({root})});await restored.restoreRuns();
+  assert.equal(JSON.parse(await fs.readFile(path.join(root,run.id,'verification.json'),'utf8')).operationKey,'finish');
 });
 
 test('strictly allowlists persisted LLM metadata and durable retry preserves history', async t => {

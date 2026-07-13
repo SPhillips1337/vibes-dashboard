@@ -71,6 +71,14 @@ Execution and verification are separate trust boundaries: `execution.claimed_com
 
 Demo runs are prototype fixtures only. Their plan and completion records carry `demo_fixture_only: true`, bypass external command verification, and must not be treated as evidence that a real workspace task was verified.
 
+`server/harness-api.js` is the read-only HTTP boundary. It validates run IDs and bounded pagination, translates filesystem errors to stable public errors, and recursively bounds/redacts response values. The Orchestrator Timeline and Evidence tabs consume these endpoints; Socket.io remains a refresh signal rather than an unbounded data transport.
+
+Child runs have independent event logs and verification, immutable server-derived lineage, and a maximum depth of four. Parent reads aggregate at most 100 direct child summaries; they never recurse. Required children come only from the strict persisted plan/server policy and are verified through targeted direct lookups, never the display cap. Parent-scoped operation intents reserve deterministic child IDs before crossing the parent/child directory boundary; retry repairs missing child/link events without duplicates. Checkpoints append authoritative bounded metadata events before derived documents, and restoration regenerates missing documents. Resume is limited to interrupted/blocked runs, appends a retry request, and never launches work.
+
+Retention has no scheduler and defaults to dry-run. Operators must explicitly inject `enableDestructiveRetention` (the server maps `HARNESSES_RETENTION_DELETE_ENABLED=true`) before deletion is possible. Age, count, and bounded-byte eligibility are independent; active lineage is protected in both directions. Deletion revalidates with `lstat`, atomically renames into a root-owned quarantine name, then removes quarantine. This narrows source substitution; the trusted single-writer/root-owner residual remains. Operation intents make cross-directory child creation repairable, not transactional. Back up and restore by stopping the single writer and copying whole run directories; never copy only `events.jsonl` or edit a retained log.
+
+Exports are authenticated, bounded, redacted JSON and omit cwd/internal store paths. They are audit/backup aids, not lossless replacements for a stopped-writer directory backup. Prototype boundaries remain: no automatic child spawning from model text, no rollback engine, no scheduled pruning, and no automatic resume.
+
 ---
 
 ## 🎨 Frontend Architecture

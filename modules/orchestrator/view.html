@@ -107,6 +107,16 @@
       </div>
       <div class="detail-mission" id="detail-mission"></div>
       <div class="detail-tasks" id="detail-tasks-list"></div>
+      <div class="harness-tabs" role="tablist" aria-label="Run details">
+        <button type="button" class="harness-tab is-active" id="timeline-tab" role="tab" aria-selected="true" aria-controls="timeline-panel">Timeline</button>
+        <button type="button" class="harness-tab" id="evidence-tab" role="tab" aria-selected="false" aria-controls="evidence-panel" tabindex="-1">Evidence</button>
+      </div>
+      <section class="harness-panel" id="timeline-panel" role="tabpanel" aria-labelledby="timeline-tab">
+        <p class="harness-state">Select a run to load its timeline.</p>
+      </section>
+      <section class="harness-panel hidden" id="evidence-panel" role="tabpanel" aria-labelledby="evidence-tab">
+        <p class="harness-state">Select a run to load verification evidence.</p>
+      </section>
       <h3 class="detail-section-title">Live Logs</h3>
       <div class="detail-logs" id="detail-logs">
         <div class="log-empty">No logs yet...</div>

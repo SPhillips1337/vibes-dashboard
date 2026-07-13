@@ -4,7 +4,11 @@
    autocomplete, detail overlay, and lifecycle events.
    ═══════════════════════════════════════ */
 
-(function () {
+function buildTimelineModel(events=[]) { return events.map(event=>({id:event.eventId,type:event.type,timestamp:event.timestamp||'',actor:event.actor?.id||event.actor?.type||'harness',attempt:String(event.data?.attempt??event.data?.attemptNumber??'—'),summary:String(event.data?.message||event.data?.reason||event.data?.task?.title||event.data?.taskId||event.type).slice(0,240),statusLabel:{'verification.passed':'Verified','verification.failed':'Verification failed','verification.started':'Awaiting verification','run.restored':'Interrupted'}[event.type]||event.type.replaceAll('.',' ')})); }
+function buildEvidenceModel(value={}) { let statusLabel='Awaiting verification';if(value.demo)statusLabel='Demo fixture only';else if(value.status==='passed')statusLabel='Verified';else if(value.status==='failed')statusLabel='Verification failed';else if(value.status==='interrupted')statusLabel='Interrupted';return{...value,statusLabel,checks:Array.isArray(value.checks)?value.checks:[],artifacts:Array.isArray(value.artifacts)?value.artifacts:[]}; }
+
+if (typeof window === 'undefined') module.exports={buildTimelineModel,buildEvidenceModel};
+else (function () {
   'use strict';
 
   // ── References & Setup ──
@@ -35,6 +39,18 @@
   const detailMission = $('#detail-mission');
   const detailTasksList = $('#detail-tasks-list');
   const detailLogs = $('#detail-logs');
+  const timelinePanel = detailOverlay.querySelector('#timeline-panel');
+  const evidencePanel = detailOverlay.querySelector('#evidence-panel');
+  const timelineTab = detailOverlay.querySelector('#timeline-tab');
+  const evidenceTab = detailOverlay.querySelector('#evidence-tab');
+  let harnessRefreshTimer = null;
+  let timelineOffset = 0;
+  let timelineHasMore = false;
+  let timelineLoading = false;
+  let harnessGeneration = 0;
+  let timelineController = null;
+  let evidenceController = null;
+  const renderedEventIds = new Set();
 
   // State
   let currentModalAgentId = null;
@@ -325,16 +341,88 @@
   }
 
   // ── Detail View ──
+  function stateMessage(panel, message, error) {
+    panel.replaceChildren(); const text = document.createElement('p');
+    text.className = `harness-state${error ? ' is-error' : ''}`; text.textContent = message; panel.appendChild(text);
+  }
+
+  function eventSummary(event) {
+    const data = event.data || {};
+    return String(data.message || data.reason || data.task?.title || data.taskId || event.type).slice(0, 240);
+  }
+
+  function renderTimeline(payload, append) {
+    const existingMore=timelinePanel.querySelector('.load-more'); if(existingMore) existingMore.remove();
+    if (!append) { timelinePanel.replaceChildren(); renderedEventIds.clear(); }
+    if (!payload.items.length && !append) stateMessage(timelinePanel, 'No timeline events yet.');
+    payload.items.forEach(event => {
+      if(renderedEventIds.has(event.eventId)) return; renderedEventIds.add(event.eventId);
+      const item = document.createElement('article'); item.className = `timeline-item event-${event.type.replaceAll('.', '-')}`; item.dataset.eventId=event.eventId; item.tabIndex = -1;
+      const title = document.createElement('strong'); title.textContent = event.type.replaceAll('.', ' ');
+      const meta = document.createElement('span'); meta.className = 'timeline-meta'; meta.textContent = `${event.timestamp || 'Unknown time'} · ${event.actor?.id || 'harness'} · attempt ${event.data?.attempt ?? '—'}`;
+      const summary = document.createElement('p'); summary.textContent = eventSummary(event);
+      item.append(title, meta, summary); timelinePanel.appendChild(item);
+    });
+    timelineOffset = Number.isSafeInteger(payload.nextCursor) ? payload.nextCursor : (Number.isSafeInteger(payload.nextOffset) ? payload.nextOffset : timelineOffset);
+    timelineHasMore=Boolean(payload.hasMore);
+    const messages=[...(payload.warnings||[])]; if(payload.truncated) messages.push('Timeline response was truncated.');
+    messages.forEach(message=>{const warning=document.createElement('p');warning.className='harness-state is-warning';warning.setAttribute('role','status');warning.textContent=message;timelinePanel.appendChild(warning);});
+    if (timelineHasMore) { const more=document.createElement('button'); more.type='button'; more.className='btn btn-secondary load-more'; more.textContent='Load more'; more.addEventListener('click',()=>loadTimeline(true)); timelinePanel.appendChild(more); }
+  }
+
+  function evidenceRow(titleText, values, eventId) {
+    const card=document.createElement('article'); card.className='evidence-card';
+    const title=document.createElement(eventId?'button':'strong'); title.textContent=titleText;
+    if(eventId){ title.type='button'; title.className='evidence-reference'; title.addEventListener('click',()=>loadTimelineUntil(eventId)); }
+    card.appendChild(title);
+    values.forEach(([label,value])=>{ const row=document.createElement('p'); const strong=document.createElement('strong'); strong.textContent=`${label}: `; const text=document.createElement('span'); text.textContent=String(value ?? '—'); row.append(strong,text); card.appendChild(row); });
+    return card;
+  }
+
+  function evidenceLabel(data) { if(data.demo) return 'Demo fixture only'; if(data.status==='passed') return 'Verified'; if(data.status==='failed') return 'Verification failed'; if(data.status==='interrupted') return 'Interrupted'; return 'Awaiting verification'; }
+  function renderEvidence(data) {
+    evidencePanel.replaceChildren(); const status=document.createElement('h3'); status.className=`evidence-status status-${data.status}`; status.textContent=evidenceLabel(data); evidencePanel.appendChild(status);
+    (data.warnings||[]).forEach(message=>{const warning=document.createElement('p');warning.className='harness-state is-warning';warning.setAttribute('role','status');warning.textContent=message;evidencePanel.appendChild(warning);});
+    if(data.truncated){const warning=document.createElement('p');warning.className='harness-state is-warning';warning.setAttribute('role','status');warning.textContent='Evidence results are truncated.';evidencePanel.appendChild(warning);}
+    (data.children||[]).forEach(child=>{const card=evidenceRow('Child run',[['Run',child.id],['Task',child.taskId],['Status',child.status],['Verification',child.verificationStatus]]);card.classList.add('child-run-card');const open=document.createElement('button');open.type='button';open.className='btn btn-secondary btn-sm';open.textContent='Open child';open.addEventListener('click',()=>openDetail(child.id));card.appendChild(open);evidencePanel.appendChild(card);});
+    (data.checks||[]).forEach(check=>evidencePanel.appendChild(evidenceRow('Verification check', [['Command',check.command],['Args',Array.isArray(check.args)?check.args.join(' '):Array.isArray(check.argv)?check.argv.join(' '):'—'],['Exit / timeout',check.timedOut?'Timed out':check.exitCode],['Duration',check.durationMs?`${check.durationMs} ms`:'—'],['stdout',check.stdout],['stderr',check.stderr]],check.eventId)));
+    (data.artifacts||[]).forEach(artifact=>evidencePanel.appendChild(evidenceRow('Artifact',[['Path',artifact.path],['Size',artifact.size],['SHA-256',artifact.sha256],['Valid',artifact.valid]],artifact.eventId)));
+    if(data.failureRecord) evidencePanel.appendChild(evidenceRow('Failure record',[['Terminal cause',data.failureRecord.terminalCause],['Agent behaviour',data.failureRecord.relevantAgentBehaviour],['Mechanism',data.failureRecord.exposedMechanism],['Retryable',data.failureRecord.retryable],['Evidence IDs',(data.failureRecord.evidenceEventIds||[]).join(', ')]]));
+    if(!(data.checks||[]).length && !(data.artifacts||[]).length && !data.failureRecord){ const empty=document.createElement('p'); empty.className='harness-state'; empty.textContent='No verification evidence recorded.'; evidencePanel.appendChild(empty); }
+  }
+
+  async function loadTimeline(append=false){
+    const id=currentDetailAgentId;if(!id||timelineLoading)return false; const generation=harnessGeneration;
+    timelineLoading=true; const oldMore=timelinePanel.querySelector('.load-more');if(oldMore)oldMore.remove();
+    if(!append){timelineOffset=0;timelineHasMore=false;timelineController?.abort();timelineController=new AbortController();stateMessage(timelinePanel,'Loading timeline…');}
+    const controller=timelineController||new AbortController(); timelineController=controller;
+    try{const response=await fetch(`/api/harness/runs/${encodeURIComponent(id)}/events?cursor=${append?timelineOffset:0}&limit=100`,{signal:controller.signal});if(!response.ok)throw new Error('request failed');const payload=await response.json();if(generation!==harnessGeneration||id!==currentDetailAgentId)return false;renderTimeline(payload,append);return true;}
+    catch(error){if(error.name!=='AbortError'&&generation===harnessGeneration&&id===currentDetailAgentId)stateMessage(timelinePanel,'Timeline could not be loaded.',true);return false;}
+    finally{if(generation===harnessGeneration)timelineLoading=false;}
+  }
+  async function loadEvidence(){const id=currentDetailAgentId;if(!id)return;const generation=harnessGeneration;evidenceController?.abort();const controller=new AbortController();evidenceController=controller;stateMessage(evidencePanel,'Loading evidence…');try{const [evidenceResponse,detailResponse]=await Promise.all([fetch(`/api/harness/runs/${encodeURIComponent(id)}/evidence`,{signal:controller.signal}),fetch(`/api/harness/runs/${encodeURIComponent(id)}`,{signal:controller.signal})]);if(!evidenceResponse.ok||!detailResponse.ok)throw new Error('request failed');const [payload,detail]=await Promise.all([evidenceResponse.json(),detailResponse.json()]);if(generation===harnessGeneration&&id===currentDetailAgentId)renderEvidence({...payload,children:detail.children||[]});}catch(error){if(error.name!=='AbortError'&&generation===harnessGeneration&&id===currentDetailAgentId)stateMessage(evidencePanel,'Evidence could not be loaded.',true);} }
+  function refreshHarness(){clearTimeout(harnessRefreshTimer);harnessRefreshTimer=setTimeout(()=>{loadTimeline();loadEvidence();},180);}
+  function findTimelineEvent(eventId){return [...timelinePanel.querySelectorAll('[data-event-id]')].find(item=>item.dataset.eventId===eventId);}
+  function focusLoadedTimeline(eventId){const target=findTimelineEvent(eventId);if(!target)return false;target.classList.add('is-highlighted');target.focus();target.scrollIntoView({block:'center'});setTimeout(()=>target.classList.remove('is-highlighted'),1600);return true;}
+  async function loadTimelineUntil(eventId){selectHarnessTab('timeline');if(focusLoadedTimeline(eventId))return;let pages=0;while(timelineHasMore&&pages++<100){if(!await loadTimeline(true))break;if(focusLoadedTimeline(eventId))return;}const status=document.createElement('p');status.className='harness-state is-warning';status.setAttribute('role','status');status.textContent='Evidence event not in loaded timeline';timelinePanel.appendChild(status);status.focus?.();}
+  function selectHarnessTab(name){const timeline=name==='timeline';timelineTab.setAttribute('aria-selected',String(timeline));evidenceTab.setAttribute('aria-selected',String(!timeline));timelineTab.tabIndex=timeline?0:-1;evidenceTab.tabIndex=timeline?-1:0;timelineTab.classList.toggle('is-active',timeline);evidenceTab.classList.toggle('is-active',!timeline);timelinePanel.classList.toggle('hidden',!timeline);evidencePanel.classList.toggle('hidden',timeline);timelinePanel.hidden=!timeline;evidencePanel.hidden=timeline;timelinePanel.setAttribute('aria-hidden',String(!timeline));evidencePanel.setAttribute('aria-hidden',String(timeline));}
+
   function openDetail(id) {
     const agent = window.Dashboard.agents.get(id);
     if (!agent) return;
+    harnessGeneration++; timelineController?.abort(); evidenceController?.abort(); timelineLoading=false; clearTimeout(harnessRefreshTimer);
     currentDetailAgentId = id;
     renderDetail(agent);
     detailOverlay.classList.remove('hidden');
     socket.emit('agent-logs', { id });
+    selectHarnessTab('timeline');
+    loadTimeline();
+    loadEvidence();
   }
 
   function closeDetail() {
+    harnessGeneration++; clearTimeout(harnessRefreshTimer); harnessRefreshTimer=null;
+    timelineController?.abort(); evidenceController?.abort(); timelineController=null; evidenceController=null; timelineLoading=false;
     detailOverlay.classList.add('hidden');
     currentDetailAgentId = null;
   }
@@ -484,6 +572,7 @@
 
     if (currentDetailAgentId === agent.id) {
       renderDetail(agent);
+      refreshHarness();
     }
   });
 
@@ -509,6 +598,17 @@
   });
 
   // ── UI Listeners ──
+  [timelineTab, evidenceTab].forEach((tab, index, tabs) => {
+    tab.addEventListener('click', () => selectHarnessTab(tab === timelineTab ? 'timeline' : 'evidence'));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      tabs[next].click(); tabs[next].focus();
+    });
+  });
+  socket.on('harness-event', event => { if (event && event.runId === currentDetailAgentId) refreshHarness(); });
+
   addCard.addEventListener('click', () => {
     openModal();
     if (window.vibePlayer) window.vibePlayer.playClick();
