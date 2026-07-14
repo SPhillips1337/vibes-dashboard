@@ -38,32 +38,32 @@
 
 ## Phase 6: Voice Command Button
 
-- [ ] **T6.1**: Add microphone speech button SVG to `index.html` header bar
-- [ ] **T6.2**: Implement speech button CSS with idle/listening/processing/no-mic states
-- [ ] **T6.3**: Create `voice.js` — `CommandParser` class with `normalize()`, `classify()`, `extractParams()`, `execute()`
-- [ ] **T6.4**: Implement Web Speech API glue — start/stop recognition, transcript capture
-- [ ] **T6.5**: Build initial intent catalog: launch agent, navigate, music, theme toggle
-- [ ] **T6.6**: Implement audio ducking — lower music volume to 20% while mic active
-- [ ] **T6.7**: Build destructive action confirmation dialog (glass-style, Confirm/Cancel)
-- [ ] **T6.8**: Wire microphone permission-denied state with tooltip
-- [ ] **T6.9**: Implement TTS feedback via `SpeechSynthesisUtterance` — voice, rate, volume from settings
-- [ ] **T6.10**: Build glass-style toast notification system for command feedback
-- [ ] **T6.11**: Verify against VR-1 through VR-13
+- [x] **T6.1**: Add microphone speech button SVG to `index.html` header bar
+- [x] **T6.2**: Implement speech button CSS with idle/listening/processing/no-mic states
+- [x] **T6.3**: Create `voice.js` — `CommandParser` class with `normalize()`, `classify()`, `extractParams()`, `execute()`
+- [x] **T6.4**: Implement Web Speech API glue — start/stop recognition, transcript capture
+- [x] **T6.5**: Build initial intent catalog: launch agent, navigate, music, theme toggle
+- [x] **T6.6**: Implement audio ducking — lower music volume to 20% while mic active
+- [x] **T6.7**: Build destructive action confirmation dialog (glass-style, Confirm/Cancel)
+- [x] **T6.8**: Wire microphone permission-denied state with tooltip
+- [x] **T6.9**: Implement TTS feedback via `SpeechSynthesisUtterance` — voice, rate, volume from settings
+- [x] **T6.10**: Build glass-style toast notification system for command feedback
+- [x] **T6.11**: Verify against VR-1 through VR-13
 
 ## Phase 7: Settings Modal Overhaul
 
-- [ ] **T7.1**: Build settings modal HTML with tabbed layout (General / Voice / LLM Provider)
-- [ ] **T7.2**: Implement tab switching CSS/JS with active underline indicator
-- [ ] **T7.3**: Create `settings.js` — `SettingsManager` module with localStorage persistence
-- [ ] **T7.4**: General tab — Voice Feedback toggle, Auto-launch toggle, Theme selector
-- [ ] **T7.5**: Voice/TTS tab — voice dropdown (populated from `getVoices()`), rate slider, volume slider, test button
-- [ ] **T7.6**: LLM Provider tab — provider selector (Ollama/LM Studio/OpenAI Compatible/Disabled)
-- [ ] **T7.7**: LLM Provider tab — dynamic fields per provider (host URL, model, API key, max tokens)
-- [ ] **T7.8**: Implement Test Connection button — ping Ollama `/api/tags`, LM Studio / OpenAI `/v1/chat/completions`
-- [ ] **T7.9**: Ollama model discovery — auto-populate model dropdown from `/api/tags` on successful test
-- [ ] **T7.10**: API key field — masked input with show/hide toggle + security warning banner
-- [ ] **T7.11**: Dispatch `settings-changed` DOM events for reactive updates
-- [ ] **T7.12**: Verify against SR-1 through SR-9
+- [x] **T7.1**: Build settings modal HTML with tabbed layout (General / Voice / LLM Provider)
+- [x] **T7.2**: Implement tab switching CSS/JS with active underline indicator
+- [x] **T7.3**: Create `settings.js` — `SettingsManager` module with localStorage persistence
+- [x] **T7.4**: General tab — Voice Feedback toggle, Auto-launch toggle, Theme selector
+- [x] **T7.5**: Voice/TTS tab — voice dropdown (populated from `getVoices()`), rate slider, volume slider, test button
+- [x] **T7.6**: LLM Provider tab — provider selector (Ollama/LM Studio/OpenAI Compatible/Disabled)
+- [x] **T7.7**: LLM Provider tab — dynamic fields per provider (host URL, model, API key, max tokens)
+- [x] **T7.8**: Implement Test Connection button — ping Ollama `/api/tags`, LM Studio / OpenAI `/v1/chat/completions`
+- [x] **T7.9**: Ollama model discovery — auto-populate model dropdown from `/api/tags` on successful test
+- [x] **T7.10**: API key field — masked input with show/hide toggle + security warning banner
+- [x] **T7.11**: Dispatch `settings-changed` DOM events for reactive updates
+- [x] **T7.12**: Verify against SR-1 through SR-9
 
 ## Phase 8: AI Chat Overlay
 
@@ -97,9 +97,9 @@
 
 ## Phase 11: Wake-Word Detection (Future)
 
-- [ ] **T11.1**: Add Wake Word toggle to Settings General tab
-- [ ] **T11.2**: Implement continuous `SpeechRecognition` with interim results
-- [ ] **T11.3**: Build wake-word indicator in header bar (pulsing "Vibes" state)
-- [ ] **T11.4**: Implement wake-word detection → capture utterance → command execution loop
-- [ ] **T11.5**: Add auto-sleep on tab backgrounding via `visibilitychange`
-- [ ] **T11.6**: Verify against WR-1 through WR-5
+- [x] **T11.1**: Add Wake Word toggle to Settings General tab
+- [x] **T11.2**: Implement continuous `SpeechRecognition` with interim results
+- [x] **T11.3**: Build wake-word indicator in header bar (pulsing "Vibes" state)
+- [x] **T11.4**: Implement wake-word detection → capture utterance → command execution loop
+- [x] **T11.5**: Add auto-sleep on tab backgrounding via `visibilitychange`
+- [x] **T11.6**: Verify against WR-1 through WR-5

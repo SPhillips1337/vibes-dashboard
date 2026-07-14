@@ -1,8 +1,29 @@
-# Testing Guide
+# Testing
 
-## Current Status
+## Phase 4 harness reads and UI
 
-This project does not currently have an automated test suite. Testing is performed manually.
+Run `npm test` for the complete Node suite or `npm run test:harness` for durable-harness coverage. `test/harness/harness-api.test.js` covers pagination validation, traversal, stable errors, bounded log tails, and evidence envelopes. `test/orchestrator-render.test.js` covers Timeline/Evidence view models and statically prohibits `innerHTML` assignment in orchestrator live-data paths. Browser smoke should additionally exercise authenticated tab keyboard navigation and evidence-to-timeline focus.
+
+## Automated Tests
+
+The project uses Node's built-in `node:test` runner and has no testing dependencies.
+
+```bash
+npm test                 # all top-level and durable-harness tests
+npm run test:harness     # durable-harness contract, store, and projector tests
+```
+
+Harness tests live in `test/harness/*.test.js`; secret-free replay fixtures live in `test/fixtures/harness-runs/`. The suite covers event validation/redaction, filesystem durability and recovery, concurrent append serialization, path containment, and deterministic run projection.
+
+`test/harness/phase5-6.test.js` covers operation-key conflict and crash repair, child isolation/depth and targeted required-child fail-closed outcomes, event-first checkpoint repair/resume, independent age/count/byte retention with lineage/quarantine safety, exact serialized export bounds, and `.env` credential echo redaction.
+
+Production CommonJS files can be syntax-checked directly:
+
+```bash
+node --check server/harness/event-contract.js
+node --check server/harness/run-store.js
+node --check server/harness/run-projector.js
+```
 
 ## Manual Testing
 
@@ -14,46 +35,26 @@ Start the server and verify the following:
 npm start
 ```
 
-1. **Server starts correctly** — Console should show the dashboard banner with port, WebSocket status, and execution mode
+1. **Server starts correctly** — Console should show the dashboard banner with port, WebSocket status, and execution mode.
 2. **REST endpoints** — Test with curl:
    ```bash
-   curl http://localhost:9000/api/agents     # should return []
-   curl http://localhost:9000/api/audio       # should return track list or []
+   curl http://localhost:9000/api/agents
+   curl http://localhost:9000/api/audio
    ```
-3. **Static files** — Open `http://localhost:9000` — the dashboard should load with the glassmorphic UI
+3. **Static files** — Open `http://localhost:9000`; the dashboard should load with the glassmorphic UI.
 
 ### Dashboard UI
 
-1. **Agent creation** — Click the "+" card, enter a mission, submit
-2. **Task review** — Verify tasks appear, then accept or decline
-3. **Execution** — Watch progress bar update and log lines stream
-4. **Agent detail** — Click an agent card to expand; verify live logs
-5. **Agent termination** — Click terminate; verify agent is removed
-6. **Music player** — Open music panel, play/pause, adjust volume
-7. **Visualizer** — Verify frequency bars react to audio
-8. **Settings** — Open settings, toggle theme, configure LLM provider
-9. **Voice commands** — (HTTPS/localhost only) Click mic, speak a command
-
-### HTTPS / Voice
-
-1. Run `bash generate_cert.sh`
-2. Start server and visit `https://localhost:9000`
-3. Accept the self-signed certificate warning
-4. Click the microphone button and grant microphone permission
-5. Speak a command (e.g., "launch agent")
+Verify agent creation and review, execution progress/logs, agent termination, music and visualizer controls, settings, and voice commands. HTTPS or localhost and browser microphone permission are required for voice testing.
 
 ### Edge Cases
 
-- **Concurrent agents** — Launch multiple agents; verify each runs independently
-- **Rapid create/terminate** — Create and immediately terminate agents
-- **Empty audio directory** — Remove audio files; verify `/api/audio` returns `[]`
-- **No Vibes repo** — Run without Vibes installed; verify demo mode activated
-- **Missing certs** — Run without `certs/`; verify HTTP fallback message
+- Launch multiple agents and verify independent progress.
+- Create and immediately terminate an agent.
+- Verify `/api/audio` returns `[]` when no audio is configured.
+- Run without Vibes installed and verify demo mode.
+- Run without certificates and verify HTTP fallback messaging.
 
-## Future
+## Remaining Coverage
 
-Automated tests should be added for:
-- Server REST endpoints (supertest + Jest)
-- Socket.io event handling
-- VibesBridge JSON-RPC flow
-- Frontend rendering and state management
+Automated coverage is still needed for Socket.io behavior, VibesBridge JSON-RPC flow, and broader frontend rendering/state management.

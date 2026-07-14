@@ -1,166 +1,136 @@
 # Vibes Dashboard
 
-Premium glassmorphic dashboard for orchestrating autonomous Vibes subagents. Features real-time agent monitoring, reactive particle backgrounds, an integrated music player with audio frequency visualizer, and voice command control.
+Premium glassmorphic dashboard for orchestrating autonomous [Vibes](https://github.com/lalalune/vibes) subagents. Features real-time agent monitoring, reactive Three.js/WebGL backgrounds, an integrated music player with audio visualizer, and voice-command control.
 
-Developed and extensively tested on **Ubuntu Linux** with **Google Chrome** — the built-in `SpeechRecognition` system works best in Chrome.
+> Tested on **Ubuntu Linux** with **Google Chrome**. The built-in `SpeechRecognition` API works best in Chrome.
 
-### 🚀 Quick Install (Linux)
+---
 
-The easiest way to install Vibes and set up the global `vibes` command is using our automated installer:
+## Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/SPhillips1337/vibes-dashboard.git
+cd vibes-dashboard
+npm install
+
+# (Optional) Generate self-signed certs — required for microphone access
+bash generate_cert.sh
+
+# Start
+npm start
+```
+
+Open **https://localhost:9000** (or http://localhost:9000 without certs — voice won't work).
+
+### One-line installer (Linux)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/SPhillips1337/vibes-dashboard/main/install.sh | bash
 ```
 
-## Manual Installation
+---
 
-```bash
-# Clone the repository
-git clone https://github.com/SPhillips1337/vibes-dashboard.git
-cd vibes-dashboard
+## Environment Variables
 
-# Install dependencies
-npm install
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `9000` | Server port |
+| `HOST` | `0.0.0.0` | Bind address |
+| `ADMIN_PASSWORD` | `VibesAdmin2026!` | Seed admin password — **change immediately** |
+| `USE_VIBES` | auto-detect | `true` = real agents, `false` = demo simulation |
+| `ALLOW_LOCAL_PROXY` | `true` in dev | Allow browser proxy to reach private IPs |
+| `AGENT_COMM_MCP_URL` | `http://127.0.0.1:8767/mcp` | Agent Communication MCP Streamable HTTP endpoint |
+| `AGENT_COMM_MCP_TOKEN` | unset | Server-only MCP bearer token; unset shows a not-configured state |
+| `AGENT_COMM_MCP_TIMEOUT_MS` | `5000` | Coordination request timeout in milliseconds |
 
-# Run the project
-npm start
-```
-
-Open `http://localhost:9000` in your browser.
-
-> **Configuration**: The server binds to `0.0.0.0` on port `9000` by default.
-> Override via environment variables:
-> - `PORT`: Server port (default: `9000`)
-> - `HOST`: Bind address (default: `0.0.0.0`)
-> - `ALLOW_LOCAL_PROXY`: Set to `true` to allow the web-browser proxy to access private/internal network addresses in production (defaults to `true` in development/non-production environments).
-> - `ADMIN_PASSWORD`: Default password for the admin account seed.
-> - `USE_VIBES`: Force connection mode (`true` for real Vibes agents, `false` for demo/simulation).
-> 
-> Example:
-> ```bash
-> PORT=9001 ALLOW_LOCAL_PROXY=true npm start
-> ```
-
-### HTTPS / SSL (Required for Microphone)
-
-Voice commands (`SpeechRecognition`) require a secure context. The server automatically enables HTTPS when certificates are present in `certs/`:
-
-```bash
-# Generate self-signed certificates (one-time setup)
-bash generate_cert.sh
-
-# Start the server — it will now serve over HTTPS
-npm start
-```
-
-> **Note**: The certificate is self-signed. Your browser will show a security warning — click **Advanced → Proceed** to accept it. This is safe for local development.
-
-> **Known issue**: Chrome's browser-native `SpeechRecognition` may fire "network" errors with self-signed certificates on some platforms. If the voice button doesn't work, try accessing `http://localhost:9000` (Chrome treats `localhost` as a secure context regardless of protocol) or use a different browser like Edge which handles self-signed certs better for speech APIs.
+---
 
 ## Project Structure
 
 ```
-├── modules/                # Pluggable modular components
-│   ├── launcher/           # Launcher registry module (style, view, script, manifest)
-│   ├── log-viewer/         # Log-viewer dashboard panel
-│   ├── settings/           # Settings management registry module
-│   ├── web-browser/        # Secure sandboxed browser proxy client
-│   └── ...                 # Other visualizer & agent orchestration widgets
-├── public/                 # Frontend core assets & shell
-│   ├── index.html          # Main application wrapper & shell
-│   ├── css/
-│   │   └── style.css       # Core glassmorphic design system tokens
+├── modules/                # Drop-in modular panels (manifest.json + view/style/script)
+│   ├── music/              # Vibe Station — Jamendo discovery, player, visualizer
+│   ├── orchestrator/       # Agent launch, monitoring, live log streaming
+│   ├── settings/           # Tabbed settings (General, Voice, LLM, Orchestration)
+│   ├── terminal/           # Terminal emulator
+│   ├── web-browser/        # Sandboxed iframe browser with dock tabs
+│   ├── log-viewer/         # Real-time log viewer
+│   ├── linkedin-workbench/ # Content calendar & RSS automation
+│   ├── control-center/     # Real provider/activity/approval projection
+│   └── module-manager/     # Sidebar reordering & panel config
+├── public/
+│   ├── index.html          # Shell SPA
+│   ├── css/style.css       # Design system tokens
 │   ├── js/
-│   │   ├── app.js          # Main application & dynamic module loader
-│   │   ├── background.js   # Audio-reactive canvas particle engine
+│   │   ├── app.js          # Module loader
+│   │   ├── background.js   # Three.js WebGL background engine
 │   │   ├── music.js        # Core audio controller
-│   │   ├── settings.js     # Core settings configuration
-│   │   └── voice.js        # Voice control & speech synthesis engine
-│   └── audio/              # Audio visualizer MP3 tracks
+│   │   ├── settings.js     # Settings persistence
+│   │   └── voice.js        # Wake-word + command + TTS engine
+│   └── audio/              # Local MP3 tracks
 ├── server/
-│   ├── index.js            # Express + Socket.io server & asset proxy (with CSRF / SSRF hardening)
-│   ├── auth.js             # Authentication manager with rate limiting and secure hashing
-│   └── vibes-bridge.js     # Vibes CLI subagent orchestration (JSON-RPC)
-├── certs/                  # SSL certificates (generated by generate_cert.sh)
-├── docs/
-│   ├── API.md              # REST & WebSocket API reference
-│   ├── ARCHITECTURE.md     # System architecture overview
-│   ├── BUILD.md            # Build and development instructions
-│   └── TESTING.md          # Testing guide
-├── AGENTS.md               # AI agent guidelines & voice log protocol
-├── DESIGN.md               # Design tokens, glassmorphic specs, component schema
-├── SPECIFICATION.md        # Technical specification
-├── REQUIREMENTS.md         # Functional & non-functional requirements
-├── TASKS.md                # Task tracker
-├── PLAN.md                 # Development plan
-├── VOICE-FEATURE-PLAN.md   # Voice feature implementation plan
+│   ├── index.js            # Express + Socket.io + all API routes
+│   ├── auth.js             # Session, RBAC, rate limiting, scrypt hashing
+│   ├── coordination-adapter.js # Secret-safe Agent Communication MCP adapter
+│   └── vibes-bridge.js     # Child-process bridge to Vibes CLI (JSON-RPC)
+├── data/music/
+│   └── saved_playlist.json # Virtual playlist — Jamendo stream metadata
+├── certs/                  # SSL certs (generated, gitignored)
+├── docs/                   # Technical reference docs
+├── research/               # External references, VFX links, notes
+├── CONTEXT.md              # Project operating manual (read this first)
+├── AGENTS.md               # AI agent rules (design constraints, protocol)
+├── HERMES.md               # Agent workflow guide (repo conventions + ADR index)
 └── package.json
 ```
 
+---
+
 ## Documentation
 
-- [API Reference](docs/API.md) — REST endpoints and WebSocket events
-- [Architecture](docs/ARCHITECTURE.md) — System architecture and component design
-- [Build Instructions](docs/BUILD.md) — Development setup and configuration
-- [Testing Guide](docs/TESTING.md) — Testing approach and guidelines
-- [Design System](DESIGN.md) — Design tokens, glassmorphism specs, component schema
-- [Technical Specification](SPECIFICATION.md) — Full system architecture and UI specs
-- [Requirements](REQUIREMENTS.md) — Functional and non-functional requirements
-- [Agent Guidelines](AGENTS.md) — AI agent protocol and voice log system
+| Doc | Purpose |
+|---|---|
+| [CONTEXT.md](CONTEXT.md) | Stack, rules, architecture decisions — the operating manual |
+| [HERMES.md](HERMES.md) | Agent workflow, conventions, ADR index |
+| [AGENTS.md](AGENTS.md) | Design system rules for AI agents |
+| [docs/API.md](docs/API.md) | REST & WebSocket API reference |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture overview |
+| [docs/BUILD.md](docs/BUILD.md) | Build & dev setup |
+| [docs/TESTING.md](docs/TESTING.md) | Testing approach |
+| [research/LINKS.md](research/LINKS.md) | Curated external references |
+
+---
+
+## Key Features
+
+- **Agent Orchestration** — Launch, monitor, and terminate Vibes subagents with live log streaming via Socket.io
+- **Modular Panel System** — Drop a folder in `/modules/` with a `manifest.json` to add a new panel
+- **Glassmorphism UI** — Dark-mode with `backdrop-filter: blur(12px)`, vibrant blue accents, micro-animations
+- **Three.js Backgrounds** — WebGL reactive backgrounds (Nebula Flow, Cyber Stream, Aurora Waves, etc.)
+- **Vibe Station** — Music player with Jamendo API search (royalty-free), virtual playlist, audio visualizer
+- **Voice Commands** — Wake-word detection ("Vibes"), Web Speech API, TTS feedback, intent registry
+- **LLM Provider** — Configure Ollama, LM Studio, or OpenAI-compatible backends
+- **Local Agent Control Center** — Real readiness, activity, approvals, verification outcomes, and artifacts with explicit empty/unavailable states
+- **Security** — HTTPS, `__Host-` cookies, CSRF tokens, scrypt hashing, SSRF blocking
+
+---
 
 ## Development
 
-### Prerequisites
-
-- Node.js 18+
-- npm 9+
-
-### Running in Development
-
 ```bash
-npm run dev
+npm run dev        # Start with --watch auto-restart
 ```
 
-Starts the server with `--watch` flag for auto-restart on file changes.
+No build step — vanilla HTML/CSS/JS served by Express.
 
-### Building
+### Adding a Module
 
-No build step required — the frontend is vanilla HTML/CSS/JS served statically by Express.
+1. Create `modules/<name>/manifest.json` (id, name, subtitle, icon, css, html, js)
+2. Add `view.html`, `style.css`, `script.js`
+3. Restart — the server auto-discovers and serves it
 
-## Features
-
-- **Agent Management** — Launch, monitor, review, and terminate Vibes subagents from a visual dashboard with real-time status updates.
-- **Real-Time Streaming** — Live progress updates and task logs via Socket.io WebSockets.
-- **Glassmorphism UI** — Premium dark-mode interface with `backdrop-filter: blur()` and vibrant blue accents; light mode also available.
-- **Dynamic Module Registry** — Extensible framework that loads launcher widgets, settings tabs, web browser interfaces, and visualizers dynamically from manifests (under `modules/`).
-- **Keyboard Accessibility** — Built-in accessibility supporting full keyboard navigation (arrow keys, tab indexing, focused state borders) and ARIA roles for widgets, settings tabs, launcher panels, and terminal inputs.
-- **Reactive Background** — Canvas-based organic particle simulation that reacts to audio energy.
-- **Music Player** — Integrated player with curated city-vibe track selection and volume control.
-- **Frequency Visualizer** — Real-time audio frequency spectrum analysis using `AnalyserNode`.
-- **Voice Commands** — Microphone-driven control with wake word ("Vibes"), configurable LLM provider, and text-to-speech feedback.
-- **LLM Provider Support** — Configure Ollama, LM Studio, or OpenAI-compatible backends for agent orchestration.
-- **Settings Panel** — Dynamic settings UI with General, Voice, LLM Provider, and Orchestration tabs.
-- **Security Hardening** — Enforces secure HTTP sessions (`SameSite=Strict`, `HttpOnly`, `__Host-` cookies), strict CSRF protection on state-changing endpoints (and asset proxies via query-based parameters), constant-time credential hashing comparison via `crypto.timingSafeEqual`, and default SSRF protection blocking local/private network ranges.
-- **Sandboxed Browser Module** — An embedded browser that proxies static web resources through a token-authorized server proxy, bypassing CSP/framing blocks without breaking cross-origin isolation.
-
-## Agent Protocol
-
-This project follows the **AntiGravity Development Protocol** with a mandatory **Voice Log System**. Upon completing any significant task, a TTS-optimized summary report must be written to `/tmp/antigravity_reports/` in the format `YYYY-MM-DD_HHMM_Task_Name.md`.
-
-## Execution Modes
-
-- **Auto-Detect** — Automatically uses real Vibes agents if the Vibes repository is found; falls back to demo simulation
-- **Real Vibes Agent** — Spawns a Vibes MCP server instance as a child process and communicates via JSON-RPC
-- **Demo / Simulation** — Simulated agent execution with generated task lists and randomized progress for demonstration purposes
-
-Set the mode via the Settings panel or the `USE_VIBES` environment variable.
-
-## Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Run the project with `npm run dev` to verify
-4. Submit a pull request
+---
 
 ## License
 

@@ -4,7 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const { Server } = require('socket.io');
 const { VibesBridge } = require('./vibes-bridge');
-const { spawn } = require('child_process');
+const { createAdapterFromEnv, createControlCenterHandler } = require('./coordination-adapter');
+const { RunStore } = require('./harness/run-store');
+const { RunService } = require('./harness/run-service');
+const { toAgentProjection, parseTaskStatus } = require('./harness/agent-compat');
+const { AgentController, safeSocketHandler } = require('./harness/agent-controller');
+const { loadVerificationPolicy, selectVerification } = require('./harness/verification-policy');
+const { createVerifier } = require('./harness/verifier');
+const { createHarnessHandlers } = require('./harness-api');
+const { spawn, spawnSync } = require('child_process');
 
 const app = express();
 const certDir = path.join(__dirname, '..', 'certs');
@@ -39,6 +47,7 @@ const hasVibes = fs.existsSync(serverScript);
 const USE_VIBES = process.env.USE_VIBES === 'true' || (hasVibes && process.env.USE_VIBES !== 'false');
 
 const auth = require('./auth');
+const coordinationAdapter = createAdapterFromEnv();
 
 // Custom Cookie Parser Middleware
 app.use((req, res, next) => {
@@ -79,59 +88,67 @@ app.use('/modules', (req, res, next) => {
 
 // In-memory agent registry
 const agents = new Map();
+const harnessRoot = process.env.HARNESSES_ROOT || path.join(__dirname, '..', 'data', 'harness', 'runs');
+const runService = new RunService({
+  store: new RunStore({ root: harnessRoot }),
+  enableDestructiveRetention: process.env.HARNESSES_RETENTION_DELETE_ENABLED === 'true',
+  emit: (event, run) => {
+    const projection = toAgentProjection(run);
+    agents.set(run.id, projection);
+    io.emit('harness-event', event);
+    io.emit('agent-updated', projection);
+  },
+  onEmitError: (error, event) => console.error(`[Harness] Failed to emit ${event.type} for ${event.runId}:`, error)
+});
+const restorePromise = runService.restoreRuns().then(runs => {
+  for (const run of runs) agents.set(run.id, toAgentProjection(run));
+  console.log(`[Harness] Restored ${runs.length} durable run(s) from ${harnessRoot}`);
+}).catch(error => { console.error('[Harness] Restore failed:', error); throw error; });
 
 // Vibes Bridge (real orchestration)
-const vibesBridge = new VibesBridge();
+const vibesBridge = new VibesBridge({ onSensitiveValues: (id, values) => runService.registerSensitiveValues(id, values) });
+const policyPath = process.env.HARNESSES_VERIFICATION_POLICY;
+const policyRoot = path.resolve(process.env.HARNESSES_VERIFICATION_POLICY_ROOT || path.join(__dirname, '..', 'config', 'verification'));
+const verificationPolicy = policyPath
+  ? loadVerificationPolicy({ policyPath, trustedPolicyRoots: [policyRoot], harnessWorkspaces: [harnessRoot] })
+  : loadVerificationPolicy({ policy: { executablePaths: [], recipes: {} } });
+const verifier = createVerifier();
+const agentController = new AgentController({
+  runService,
+  vibesBridge,
+  project: toAgentProjection,
+  emit: (event, payload) => io.emit(event, payload),
+  verify: async run => run.plan?.demo_fixture_only
+    ? { passed:true, cause:'demo_fixture_only', checks:[], artifacts:[], demo_fixture_only:true }
+    : verifier.verify({
+      workspace: path.resolve(String(run.cwd || '').replace(/^~(?=$|\/)/, require('os').homedir())),
+      selection: selectVerification(await verificationPolicy, {
+        plan: run.plan,
+        declaredArtifacts: (run.artifacts || []).map(artifact => artifact.path).filter(Boolean)
+      })
+    })
+});
 
-vibesBridge.on('agent-status', (data) => {
+vibesBridge.on('agent-status', async (data) => {
   const agent = agents.get(data.id);
   if (agent && data.log) {
     // Intercept task status events
-    if (data.log.startsWith('[TASK_STATUS] ')) {
-      try {
-        const taskStatus = JSON.parse(data.log.substring(14));
-        if (agent.tasks) {
-          const taskIdx = agent.tasks.findIndex(t => t.name === taskStatus.name);
-          if (taskIdx >= 0) {
-            agent.tasks[taskIdx].status = taskStatus.status;
-            if (taskStatus.status === 'complete') {
-              const completedCount = agent.tasks.filter(t => t.status === 'complete').length;
-              agent.completedTasks = completedCount;
-              agent.progress = Math.round((completedCount / agent.totalTasks) * 100);
-            } else if (taskStatus.status === 'failed') {
-              agent.status = 'error';
-            }
-            io.emit('agent-updated', { id: data.id, ...agent });
-          }
-        }
-      } catch (e) { }
+    const taskStatus = parseTaskStatus(data.log);
+    if (taskStatus) {
+      await runService.recordTaskStatus(data.id, taskStatus).catch(error => console.warn('[Harness] Task status rejected:', error.message));
       return; // Do not push internal status to live logs
     }
-
-    if (!agent.logs) agent.logs = [];
-    agent.logs.push({ time: new Date().toISOString(), message: data.log });
-    // Keep only last 200 log lines
-    if (agent.logs.length > 200) agent.logs = agent.logs.slice(-200);
-    io.emit('agent-log', { id: data.id, log: data.log });
+    const safeLog = runService.redactForRun(data.id, data.log);
+    await runService.recordLog(data.id, { message: safeLog }).catch(error => console.warn('[Harness] Log rejected:', error.message));
+    io.emit('agent-log', { id: data.id, log: safeLog });
   }
 });
 
-vibesBridge.on('agent-error', (data) => {
-  const agent = agents.get(data.id);
-  if (agent) {
-    agent.status = 'error';
-    agent.error = data.error;
-    io.emit('agent-updated', { id: data.id, ...agent });
-  }
+vibesBridge.on('agent-error', async (data) => {
+  await runService.failExecution(data.id, { stage: 'process', reason: data.error, operationKey: `bridge-error:${data.error}` }).catch(error => console.warn('[Harness] Agent error rejected:', error.message));
 });
 
-vibesBridge.on('agent-exit', (data) => {
-  const agent = agents.get(data.id);
-  if (agent && agent.status === 'executing') {
-    agent.status = data.code === 0 ? 'complete' : 'error';
-    io.emit('agent-updated', { id: data.id, ...agent });
-  }
-});
+vibesBridge.on('agent-exit', data => agentController.onExit(data).catch(error => console.warn('[Harness] Exit rejected:', error.message)));
 
 // =========================================================================
 // AUTHENTICATION & USER MANAGEMENT API
@@ -377,38 +394,142 @@ app.get('/api/agents', (req, res) => {
   res.json(list);
 });
 
+// Bounded durable harness read model (authentication is enforced by the /api guard).
+const harnessHandlers = createHarnessHandlers(runService);
+app.get('/api/harness/runs', harnessHandlers.list);
+app.get('/api/harness/runs/:id', harnessHandlers.detail);
+app.get('/api/harness/runs/:id/events', harnessHandlers.events);
+app.get('/api/harness/runs/:id/evidence', harnessHandlers.evidence);
+app.get('/api/harness/runs/:id/children', harnessHandlers.children);
+app.get('/api/harness/runs/:id/export', harnessHandlers.exportRun);
+
+// REST API — normalized, read-only local coordination projection
+app.get('/api/control-center', createControlCenterHandler(coordinationAdapter));
+
 // ── Audio API ──
 app.get('/api/audio', (req, res) => {
   const audioDir = path.join(__dirname, '..', 'public', 'audio');
+  let tracks = [];
   try {
-    if (!fs.existsSync(audioDir)) {
-      return res.json([]);
+    if (fs.existsSync(audioDir)) {
+      const files = fs.readdirSync(audioDir);
+      tracks = files
+        .filter(f => f.endsWith('.mp3'))
+        .map(f => {
+          // Filename format: artist-title-id.mp3
+          const parts = f.replace('.mp3', '').split('-');
+          let artist = 'Vibe Artist';
+          let name = parts[0];
+
+          if (parts.length >= 2) {
+            artist = parts[0].replace(/([A-Z])/g, ' $1').trim();
+            name = parts.slice(1, -1).join(' ').replace(/\b\w/g, l => l.toUpperCase());
+          }
+
+          return {
+            name: name || f,
+            artist: artist,
+            url: `/audio/${f}`
+          };
+        });
     }
-    const files = fs.readdirSync(audioDir);
-    const tracks = files
-      .filter(f => f.endsWith('.mp3'))
-      .map(f => {
-        // Filename format: artist-title-id.mp3
-        const parts = f.replace('.mp3', '').split('-');
-        let artist = 'Vibe Artist';
-        let name = parts[0];
 
-        if (parts.length >= 2) {
-          artist = parts[0].replace(/([A-Z])/g, ' $1').trim();
-          name = parts.slice(1, -1).join(' ').replace(/\b\w/g, l => l.toUpperCase());
+    // Merge with virtual/saved streaming tracks
+    const playlistPath = path.join(__dirname, '..', 'data', 'music', 'saved_playlist.json');
+    if (fs.existsSync(playlistPath)) {
+      try {
+        const savedTracks = JSON.parse(fs.readFileSync(playlistPath, 'utf8'));
+        if (Array.isArray(savedTracks)) {
+          tracks = [...tracks, ...savedTracks];
         }
+      } catch (err) {
+        console.warn('[Music] Error loading saved playlist:', err.message);
+      }
+    }
 
-        return {
-          name: name || f,
-          artist: artist,
-          url: `/audio/${f}`
-        };
-      });
     res.json(tracks);
   } catch (err) {
     console.error('Error reading audio directory:', err);
     res.status(500).json({ error: 'Failed to list audio' });
   }
+});
+
+// ── Jamendo Music Discovery API ──
+app.get('/api/music/search', async (req, res) => {
+  const query = req.query.q || '';
+
+  try {
+    const url = `https://api.jamendo.com/v3.0/tracks/?client_id=3dce8b55&format=json&limit=15&namesearch=${encodeURIComponent(query)}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    // Map Jamendo to the format the frontend expects
+    const hits = (data.results || []).map(r => ({
+      id: r.id,
+      tags: r.name,
+      user: r.artist_name,
+      duration: r.duration,
+      audio: r.audio
+    })).filter(h => h.audio); // Only keep results with an audio stream URL
+
+    res.json({ hits });
+  } catch (err) {
+    console.error('[Jamendo] Search failed:', err);
+    res.status(500).json({ error: 'Failed to search Jamendo' });
+  }
+});
+
+app.post('/api/music/download', async (req, res) => {
+  const { url, id, tags, artist } = req.body;
+  if (!url) return res.status(400).json({ error: 'Missing track URL' });
+
+  const musicDataDir = path.join(__dirname, '..', 'data', 'music');
+  const playlistPath = path.join(musicDataDir, 'saved_playlist.json');
+
+  try {
+    if (!fs.existsSync(musicDataDir)) {
+      fs.mkdirSync(musicDataDir, { recursive: true });
+    }
+
+    let savedTracks = [];
+    if (fs.existsSync(playlistPath)) {
+      try {
+        savedTracks = JSON.parse(fs.readFileSync(playlistPath, 'utf8'));
+      } catch (err) {
+        console.warn('[Music] Error reading saved playlist, resetting:', err.message);
+      }
+    }
+
+    // Check if duplicate track exists
+    const exists = savedTracks.some(t => t.url === url || t.id === id);
+    if (!exists) {
+      savedTracks.push({
+        id: id || Date.now().toString(),
+        name: tags || 'Untitled Track',
+        artist: artist || 'iTunes Discover',
+        url: url
+      });
+      fs.writeFileSync(playlistPath, JSON.stringify(savedTracks, null, 2), 'utf8');
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Music] Saving track failed:', err);
+    res.status(500).json({ error: 'Failed to save track to library' });
+  }
+});
+
+app.get('/api/music/download-all', (req, res) => {
+  const audioDir = path.join(__dirname, '..', 'public', 'audio');
+  if (!fs.existsSync(audioDir)) return res.status(404).json({ error: 'No audio found' });
+
+  const { spawn } = require('child_process');
+  res.setHeader('Content-Disposition', 'attachment; filename="vibes-playlist.zip"');
+  res.setHeader('Content-Type', 'application/zip');
+
+  const zip = spawn('zip', ['-r', '-', '.'], { cwd: audioDir });
+  zip.stdout.pipe(res);
+  zip.stderr.on('data', (data) => console.error(`[Zip] Error: ${data}`));
 });
 
 // REST API — agent status via Vibes bridge
@@ -491,6 +612,270 @@ app.post('/api/settings', (req, res) => {
   }
 });
 
+// REST API — LinkedIn content calendar overview from the local PHP project
+app.get('/api/linkedin/overview', (req, res) => {
+  const localDataPath = path.join(__dirname, '..', 'data', 'linkedin', 'content_calendar.json');
+  const legacyDataPath = '/var/www/html/LinkedIn/data/content_calendar.json';
+  const linkedInDataPath = fs.existsSync(localDataPath) ? localDataPath : legacyDataPath;
+
+  try {
+    if (!fs.existsSync(linkedInDataPath)) {
+      return res.json({
+        sourcePath: linkedInDataPath,
+        totalPosts: 0,
+        statusCounts: {},
+        pendingReviewCount: 0,
+        latestCreatedAt: null,
+        nextScheduled: null,
+        recentPosts: [],
+        pendingReviewPosts: [],
+        updatedAt: null
+      });
+    }
+
+    const raw = fs.readFileSync(linkedInDataPath, 'utf8');
+    const posts = JSON.parse(raw);
+    const list = Array.isArray(posts) ? posts : [];
+    const statusCounts = {};
+
+    const cleanText = (value, maxLength = 180) => {
+      const text = String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!text) return '';
+      return text.length > maxLength ? `${text.slice(0, maxLength).trimEnd()}…` : text;
+    };
+
+    const parseDate = (value) => {
+      const ts = value ? new Date(value).getTime() : Number.NaN;
+      return Number.isFinite(ts) ? ts : null;
+    };
+
+    const mapPost = (post) => ({
+      id: post.id,
+      topic: post.topic || 'Untitled post',
+      status: post.status || 'unknown',
+      created_at: post.created_at || null,
+      scheduled_time: post.scheduled_time || null,
+      published_at: post.published_at || null,
+      link: post.link || null,
+      summaryPreview: cleanText(post.summary || post.content, 260),
+      hasImage: Boolean(post.image_path || post.image_url)
+    });
+
+    for (const post of list) {
+      const status = post.status || 'unknown';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    }
+
+    const byCreated = [...list].sort((a, b) => {
+      const aTs = parseDate(a.created_at) ?? 0;
+      const bTs = parseDate(b.created_at) ?? 0;
+      return bTs - aTs;
+    });
+
+    const pendingReviewPosts = byCreated
+      .filter(post => ['pending_review', 'pending'].includes(String(post.status || '').toLowerCase()))
+      .slice(0, 8)
+      .map(mapPost);
+
+    const scheduled = [...list]
+      .filter(post => parseDate(post.scheduled_time) !== null)
+      .sort((a, b) => (parseDate(a.scheduled_time) ?? 0) - (parseDate(b.scheduled_time) ?? 0));
+
+    const nextScheduled = scheduled.find(post => (parseDate(post.scheduled_time) ?? 0) >= Date.now()) || scheduled[0] || null;
+
+    const recentPosts = byCreated.slice(0, 8).map(mapPost);
+
+    const stat = fs.statSync(linkedInDataPath);
+
+    res.json({
+      sourcePath: linkedInDataPath,
+      totalPosts: list.length,
+      pendingReviewCount: pendingReviewPosts.length,
+      statusCounts,
+      latestCreatedAt: byCreated[0]?.created_at || null,
+      nextScheduled: nextScheduled
+        ? {
+            id: nextScheduled.id,
+            topic: nextScheduled.topic || 'Untitled post',
+            status: nextScheduled.status || 'unknown',
+            scheduled_time: nextScheduled.scheduled_time || null,
+            link: nextScheduled.link || null
+          }
+        : null,
+      recentPosts,
+      pendingReviewPosts,
+      updatedAt: stat.mtime.toISOString()
+    });
+  } catch (err) {
+    console.error('[LinkedIn] Failed to build overview:', err);
+    res.status(500).json({ error: 'Failed to load LinkedIn overview' });
+  }
+});
+
+// REST API — update a specific LinkedIn post
+app.post('/api/linkedin/posts/:id', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const { status, topic, content, scheduled_time } = req.body;
+  const localDataPath = path.join(__dirname, '..', 'data', 'linkedin', 'content_calendar.json');
+  const legacyDataPath = '/var/www/html/LinkedIn/data/content_calendar.json';
+  const linkedInDataPath = fs.existsSync(localDataPath) ? localDataPath : legacyDataPath;
+
+  try {
+    if (!fs.existsSync(linkedInDataPath)) {
+      return res.status(404).json({ error: 'Content calendar not found' });
+    }
+
+    const raw = fs.readFileSync(linkedInDataPath, 'utf8');
+    const posts = JSON.parse(raw);
+    const postIndex = posts.findIndex(p => p.id === id);
+
+    if (postIndex === -1) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (status) posts[postIndex].status = status;
+    if (topic) posts[postIndex].topic = topic;
+    if (content) posts[postIndex].content = content;
+    if (scheduled_time) posts[postIndex].scheduled_time = scheduled_time;
+
+    fs.writeFileSync(linkedInDataPath, JSON.stringify(posts, null, 2), 'utf8');
+    res.json({ success: true, post: posts[postIndex] });
+  } catch (err) {
+    console.error('[LinkedIn] Failed to update post:', err);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
+// REST API — current RSS import / trigger status from the local LinkedIn project
+app.get('/api/linkedin/rss-status', (req, res) => {
+  const localLogsDir = path.join(__dirname, '..', 'data', 'linkedin', 'logs');
+  const legacyLogsDir = '/var/www/html/LinkedIn/logs';
+  const logsDir = fs.existsSync(localLogsDir) ? localLogsDir : legacyLogsDir;
+
+  try {
+    if (!fs.existsSync(logsDir)) {
+      return res.json({
+        sourceDir: logsDir,
+        jobCount: 0,
+        latestJob: null,
+        updatedAt: null
+      });
+    }
+
+    const logFiles = fs.readdirSync(logsDir)
+      .filter(name => /^rss_job_rss_[0-9a-f.]+\.log$/.test(name))
+      .map(name => ({
+        name,
+        path: path.join(logsDir, name),
+        stat: fs.statSync(path.join(logsDir, name))
+      }))
+      .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
+
+    if (!logFiles.length) {
+      return res.json({
+        sourceDir: logsDir,
+        jobCount: 0,
+        latestJob: null,
+        updatedAt: fs.statSync(logsDir).mtime.toISOString()
+      });
+    }
+
+    const latest = logFiles[0];
+    const logs = fs.readFileSync(latest.path, 'utf8');
+    const recentLogs = logs.length > 9000 ? logs.slice(-9000) : logs;
+    const jobId = latest.name.replace(/^rss_job_(rss_[0-9a-f.]+)\.log$/, '$1');
+    const psResult = spawnSync('ps', ['aux'], { encoding: 'utf8' });
+    const processRunning = Boolean(psResult.stdout && psResult.stdout.includes(latest.name));
+    const success = recentLogs.includes('RSS import completed successfully') || recentLogs.includes('Saved to calendar');
+    const error = recentLogs.includes('Error generating post:') || recentLogs.includes('Traceback') || recentLogs.includes('Ollama is not available') || recentLogs.includes('Please check the endpoint.');
+    const done = success || error || (!processRunning && recentLogs.length > 0);
+
+    const lines = recentLogs.split(/\r?\n/).filter(Boolean);
+    const processingCount = lines.filter(line => line.includes('Processing:')).length;
+    const savedCount = lines.filter(line => line.includes('Saved to calendar')).length;
+    const errorCount = lines.filter(line => line.includes('Error generating post:')).length;
+    const errorDetail = error
+      ? lines.find(line => /Ollama|Traceback|ModuleNotFoundError|Error generating post|ComfyUI generation failed/i.test(line)) || 'RSS import finished with errors'
+      : null;
+    const lastMarker = success
+      ? 'RSS import completed successfully'
+      : error
+        ? errorDetail
+        : processRunning
+          ? 'Running'
+          : 'No active process detected';
+
+    res.json({
+      sourceDir: logsDir,
+      jobCount: logFiles.length,
+      latestJob: {
+        jobId,
+        logPath: latest.path,
+        updatedAt: latest.stat.mtime.toISOString(),
+        ageSeconds: Math.max(0, Math.round((Date.now() - latest.stat.mtimeMs) / 1000)),
+        done,
+        running: !done,
+        success,
+        error,
+        processRunning,
+        processingCount,
+        savedCount,
+        errorCount,
+        lastMarker,
+        logExcerpt: lines.slice(-40).join('\n')
+      },
+      updatedAt: latest.stat.mtime.toISOString()
+    });
+  } catch (err) {
+    console.error('[LinkedIn] Failed to build RSS status:', err);
+    res.status(500).json({ error: 'Failed to load LinkedIn RSS status' });
+  }
+});
+
+app.post('/api/linkedin/rss-trigger', requireAdmin, (req, res) => {
+  const localProjectRoot = path.join(__dirname, '..', 'data', 'linkedin');
+  const legacyProjectRoot = '/var/www/html/LinkedIn';
+  const projectRoot = fs.existsSync(path.join(localProjectRoot, 'rss_to_linkedin.py')) ? localProjectRoot : legacyProjectRoot;
+  
+  const scriptPath = path.join(projectRoot, fs.existsSync(path.join(localProjectRoot, 'rss_to_linkedin.py')) ? 'rss_to_linkedin.py' : 'examples/rss_to_linkedin.py');
+  const logsDir = path.join(projectRoot, 'logs');
+  const requestedCount = Number.parseInt(req.body?.count, 10);
+  const count = Number.isFinite(requestedCount) ? Math.max(1, Math.min(10, requestedCount)) : 5;
+
+  try {
+    if (!fs.existsSync(scriptPath)) {
+      return res.status(404).json({ error: 'RSS script not found' });
+    }
+
+    fs.mkdirSync(logsDir, { recursive: true });
+
+    const jobId = `rss_${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
+    const logFile = path.join(logsDir, `rss_job_${jobId}.log`);
+    const logFd = fs.openSync(logFile, 'a');
+
+    const child = spawn('python3', ['-u', scriptPath, '--max-posts', String(count), '--job-id', jobId], {
+      cwd: projectRoot,
+      detached: true,
+      stdio: ['ignore', logFd, logFd]
+    });
+
+    child.unref();
+    fs.closeSync(logFd);
+
+    res.json({
+      success: true,
+      jobId,
+      logPath: logFile,
+      count
+    });
+  } catch (err) {
+    console.error('[LinkedIn] Failed to trigger RSS import:', err);
+    res.status(500).json({ error: 'Failed to trigger LinkedIn RSS import' });
+  }
+});
+
 // REST API — discover and load dashboard modules dynamically
 app.get('/api/modules', (req, res) => {
   const modulesDir = path.join(__dirname, '..', 'modules');
@@ -545,11 +930,88 @@ app.get('/api/modules', (req, res) => {
     }
 
     res.json(modules);
-  } catch (err) {
-    console.error('[Modules] Error loading modules:', err);
-    res.status(500).json({ error: 'Failed to load modules' });
-  }
-});
+    } catch (err) {
+    console.error('[Modules] Error scanning modules:', err);
+    res.status(500).json({ error: 'Failed to list modules' });
+    }
+    });
+
+    // REST API — discover available themes
+    app.get('/api/themes', (req, res) => {
+      const themesDir = path.join(__dirname, '..', 'public', 'themes');
+      try {
+        if (!fs.existsSync(themesDir)) {
+          return res.json([]);
+        }
+        const dirs = fs.readdirSync(themesDir);
+        const themes = [];
+
+        dirs.forEach(dir => {
+          const dirPath = path.join(themesDir, dir);
+          const manifestPath = path.join(dirPath, 'manifest.json');
+
+          if (fs.statSync(dirPath).isDirectory() && fs.existsSync(manifestPath)) {
+            try {
+              const manifestContent = fs.readFileSync(manifestPath, 'utf8');
+              const manifest = JSON.parse(manifestContent);
+              manifest.path = `/themes/${dir}/theme.css`;
+              themes.push(manifest);
+            } catch (e) {
+              console.error(`[Themes] Failed to parse manifest for theme ${dir}:`, e.message);
+            }
+          }
+        });
+
+        res.json(themes);
+      } catch (err) {
+        console.error('[Themes] Error scanning themes:', err);
+        res.status(500).json({ error: 'Failed to list themes' });
+      }
+    });
+
+    // REST API — proxy for LLM connection testing (avoids CORS issues)
+    app.post('/api/llm/proxy/models', async (req, res) => {
+      const { host, key } = req.body;
+      if (!host) return res.status(400).json({ error: 'Host URL is required' });
+
+      try {
+        const url = `${host.replace(/\/+$/, '')}/models`;
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            ...(key ? { 'Authorization': `Bearer ${key}` } : {})
+          }
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          return res.status(response.status).send(errText);
+        }
+
+        const data = await response.json();
+        res.json(data);
+      } catch (err) {
+        console.error('[LLM Proxy] Connection failed:', err.message);
+        res.status(500).json({ error: `Connection failed: ${err.message}` });
+      }
+    });
+
+    app.post('/api/llm/proxy/ollama-tags', async (req, res) => {
+      const { host } = req.body;
+      if (!host) return res.status(400).json({ error: 'Host URL is required' });
+
+      try {
+        const url = `${host.replace(/\/+$/, '')}/api/tags`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        res.json(data);
+      } catch (err) {
+        console.error('[Ollama Proxy] Connection failed:', err.message);
+        res.status(500).json({ error: `Connection failed: ${err.message}` });
+      }
+    });
 
 // REST API — save user sidebar modules order preference
 app.post('/api/users/module-order', (req, res) => {
@@ -882,152 +1344,21 @@ io.on('connection', (socket) => {
   agents.forEach((agent, id) => snapshot.push({ id, ...agent }));
   socket.emit('agents-snapshot', snapshot);
 
-  // Create a new agent
-  socket.on('agent-create', (data) => {
-    const id = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-
-    // Dynamically decide whether to run a real Vibes agent or simulated demo
-    const hasLlmPrefs = data.llmPrefs && data.llmPrefs.provider && data.llmPrefs.provider !== 'disabled';
-    const isExplicitlyDisabled = data.llmPrefs && data.llmPrefs.provider === 'disabled';
+  // Durable lifecycle handlers share one tested error boundary and controller seam.
+  socket.on('agent-create', safeSocketHandler(socket, 'agent-create', async data => {
+    const isExplicitlyDisabled = data.llmPrefs?.provider === 'disabled';
     const useRealVibes = process.env.USE_VIBES === 'true' || (hasVibes && process.env.USE_VIBES !== 'false' && !isExplicitlyDisabled);
-
-    const agent = {
-      mission: data.mission || 'Unnamed Mission',
-      cwd: data.cwd || '~/',
-      status: 'planning',
-      progress: 0,
-      totalTasks: 0,
-      completedTasks: 0,
-      tasks: [],
-      logs: [],
-      createdAt: new Date().toISOString(),
-      useVibes: useRealVibes,
-      llmPrefs: data.llmPrefs,
-    };
-    agents.set(id, agent);
-    io.emit('agent-created', { id, ...agent });
-    console.log(`[Agent] Created: ${id} — "${agent.mission}" (mode: ${useRealVibes ? 'vibes' : 'demo'})`);
-
-    if (useRealVibes) {
-      // Real Vibes integration
-      handleVibesAgent(id, agent, data.llmPrefs);
-    } else {
-      // Demo simulation
-      handleDemoAgent(id, agent);
-    }
-  });
-
-  // Accept proposed tasks
-  socket.on('agent-accept', (data) => {
-    const agent = agents.get(data.id);
-    if (!agent) return;
-    agent.status = 'executing';
-    io.emit('agent-updated', { id: data.id, ...agent });
-
-    if (!agent.useVibes) {
-      simulateExecution(data.id, agent);
-    } else {
-      handleVibesExecution(data.id, agent);
-    }
-  });
-
-  // Decline proposed tasks
-  socket.on('agent-decline', (data) => {
+    return agentController.create(data, useRealVibes);
+  }));
+  socket.on('agent-accept', safeSocketHandler(socket, 'agent-accept', data => agentController.accept(data.id)));
+  socket.on('agent-decline', safeSocketHandler(socket, 'agent-decline', async data => {
     vibesBridge.terminate(data.id);
-    agents.delete(data.id);
+    await runService.declinePlan(data.id, { reason: data.reason || 'operator declined', operationKey: `decline:${data.id}` });
     io.emit('agent-removed', { id: data.id });
-  });
-
-  // Terminate agent
-  socket.on('agent-terminate', (data) => {
-    const agent = agents.get(data.id);
-    if (agent) {
-      agent.status = 'terminated';
-      vibesBridge.terminate(data.id);
-      if (activeIntervals.has(data.id)) {
-        clearInterval(activeIntervals.get(data.id));
-        activeIntervals.delete(data.id);
-      }
-      io.emit('agent-updated', { id: data.id, ...agent });
-      setTimeout(() => {
-        agents.delete(data.id);
-        io.emit('agent-removed', { id: data.id });
-      }, 800);
-    }
-  });
-
-  // Retry full agent execution
-  socket.on('agent-retry', (data) => {
-    const agent = agents.get(data.id);
-    if (!agent) return;
-    
-    if (activeIntervals.has(data.id)) {
-      clearInterval(activeIntervals.get(data.id));
-      activeIntervals.delete(data.id);
-    }
-    
-    agent.status = 'planning';
-    agent.progress = 0;
-    agent.completedTasks = 0;
-    agent.tasks = [];
-    agent.logs = [];
-    agent.error = null;
-    io.emit('agent-updated', { id: data.id, ...agent });
-
-    if (!agent.useVibes) {
-      handleDemoAgent(data.id, agent, true);
-    } else {
-      // Terminate any existing instance first
-      vibesBridge.terminate(data.id);
-      // Start a new instance
-      handleVibesAgent(data.id, agent, agent.llmPrefs, true);
-    }
-  });
-
-  // Retry from a specific task index
-  socket.on('agent-retry-task', (data) => {
-    const agent = agents.get(data.id);
-    if (!agent || !agent.tasks) return;
-    const taskIdx = agent.tasks.findIndex(t => t.id === data.taskId);
-    if (taskIdx === -1) return;
-
-    // Reset this task and all subsequent tasks to pending
-    for (let i = taskIdx; i < agent.tasks.length; i++) {
-      agent.tasks[i].status = 'pending';
-    }
-
-    agent.status = 'executing';
-    
-    // Recalculate progress/completedTasks
-    const completedCount = agent.tasks.filter(t => t.status === 'complete').length;
-    agent.completedTasks = completedCount;
-    agent.progress = Math.round((completedCount / agent.totalTasks) * 100);
-
-    io.emit('agent-updated', { id: data.id, ...agent });
-
-    if (!agent.useVibes) {
-      simulateExecution(data.id, agent, taskIdx);
-    } else {
-      const instance = vibesBridge.instances.get(data.id);
-      if (instance) {
-        // Resolve the pending intervention with 'retry' action and the taskId
-        instance.resolveIntervention('retry', undefined, data.taskId)
-          .catch(err => {
-            console.error(`[Vibes] Failed to resolve intervention for task retry:`, err.message);
-          });
-      } else {
-        // Process is dead. Let's restart the agent.
-        console.warn(`[Vibes] Process not running. Performing full retry instead.`);
-        agent.status = 'planning';
-        agent.progress = 0;
-        agent.completedTasks = 0;
-        agent.tasks = [];
-        agent.logs = [];
-        io.emit('agent-updated', { id: data.id, ...agent });
-        handleVibesAgent(data.id, agent, agent.llmPrefs);
-      }
-    }
-  });
+  }));
+  socket.on('agent-terminate', safeSocketHandler(socket, 'agent-terminate', data => agentController.terminate(data.id)));
+  socket.on('agent-retry', safeSocketHandler(socket, 'agent-retry', data => agentController.retry(data.id)));
+  socket.on('agent-retry-task', safeSocketHandler(socket, 'agent-retry-task', data => agentController.retryTask(data.id, data.taskId)));
 
   // Request logs for an agent
   socket.on('agent-logs', (data) => {
@@ -1114,152 +1445,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── Real Vibes Agent Handler ──
-async function handleVibesAgent(id, agent, llmPrefs, autoLaunch = false) {
-  try {
-    console.log(`[Vibes] Starting real agent planning for: ${agent.mission}`);
-    const result = await vibesBridge.createAgent(id, agent.cwd, agent.mission, llmPrefs);
-
-    if (result && result.content) {
-      const text = typeof result.content === 'string'
-        ? result.content
-        : (result.content[0]?.text || JSON.stringify(result.content));
-
-      try {
-        const tasks = JSON.parse(text);
-        agent.tasks = tasks;
-        agent.totalTasks = tasks.length;
-        if (autoLaunch) {
-          agent.status = 'executing';
-          io.emit('agent-updated', { id, ...agent });
-          handleVibesExecution(id, agent);
-        } else {
-          agent.status = 'review';
-          io.emit('agent-updated', { id, ...agent });
-        }
-      } catch (e) {
-        agent.status = 'error';
-        agent.error = 'Failed to parse mission plan JSON.';
-        io.emit('agent-updated', { id, ...agent });
-      }
-    }
-  } catch (err) {
-    console.error(`[Vibes] Agent ${id} failed:`, err.message);
-    agent.status = 'error';
-    agent.error = err.message;
-    io.emit('agent-updated', { id, ...agent });
-  }
-}
-
-async function handleVibesExecution(id, agent) {
-  try {
-    const result = await vibesBridge.executePlannedMission(id);
-    if (result && result.content) {
-      const text = typeof result.content === 'string'
-        ? result.content
-        : (result.content[0]?.text || JSON.stringify(result.content));
-
-      agent.status = 'complete';
-      agent.progress = 100;
-      agent.completedTasks = agent.totalTasks;
-      agent.logs.push({ time: new Date().toISOString(), message: `Mission result: ${text}` });
-      io.emit('agent-updated', { id, ...agent });
-    }
-  } catch (err) {
-    console.error(`[Vibes] Agent execution failed:`, err.message);
-    agent.status = 'error';
-    agent.error = err.message;
-    io.emit('agent-updated', { id, ...agent });
-  }
-}
-
-// ── Demo Agent Handler ──
-function handleDemoAgent(id, agent, autoLaunch = false) {
-  setTimeout(() => {
-    if (!agents.has(id)) return;
-    const tasks = generateDemoTasks(agent.mission);
-    agent.tasks = tasks;
-    agent.totalTasks = tasks.length;
-    if (autoLaunch) {
-      agent.status = 'executing';
-      io.emit('agent-updated', { id, ...agent });
-      simulateExecution(id, agent, 0);
-    } else {
-      agent.status = 'review';
-      io.emit('agent-updated', { id, ...agent });
-    }
-  }, 2500);
-}
-
-// Demo task generation
-function generateDemoTasks(mission) {
-  const taskTemplates = [
-    'Analyze project structure and dependencies',
-    'Create implementation plan',
-    'Setup core module scaffolding',
-    'Implement primary logic',
-    'Write unit tests',
-    'Integrate with existing codebase',
-    'Run validation suite',
-    'Polish and finalize',
-  ];
-  const count = 4 + Math.floor(Math.random() * 5);
-  return taskTemplates.slice(0, count).map((name, i) => ({
-    id: i + 1,
-    name,
-    status: 'pending',
-  }));
-}
-
-// Keep track of active simulation intervals
-const activeIntervals = new Map();
-
-// Simulated execution starting from a specific task index
-function simulateExecution(id, agent, startIdx = 0) {
-  if (activeIntervals.has(id)) {
-    clearInterval(activeIntervals.get(id));
-  }
-
-  let taskIndex = startIdx;
-  const interval = setInterval(() => {
-    const currentAgent = agents.get(id);
-    if (!currentAgent || currentAgent.status === 'terminated' || currentAgent.status === 'complete') {
-      clearInterval(interval);
-      activeIntervals.delete(id);
-      return;
-    }
-
-    if (currentAgent.tasks && taskIndex < currentAgent.tasks.length) {
-      const currentIdx = taskIndex;
-      taskIndex++; // Increment immediately for the next interval iteration
-
-      currentAgent.tasks[currentIdx].status = 'in-progress';
-      io.emit('agent-updated', { id, ...currentAgent });
-
-      setTimeout(() => {
-        const liveAgent = agents.get(id);
-        if (!liveAgent || !liveAgent.tasks || !liveAgent.tasks[currentIdx]) return;
-
-        liveAgent.tasks[currentIdx].status = 'complete';
-        const completedCount = liveAgent.tasks.filter(t => t.status === 'complete').length;
-        liveAgent.completedTasks = completedCount;
-        liveAgent.progress = Math.round((completedCount / liveAgent.totalTasks) * 100);
-
-        if (liveAgent.completedTasks >= liveAgent.totalTasks) {
-          liveAgent.status = 'complete';
-        }
-
-        io.emit('agent-updated', { id, ...liveAgent });
-      }, 2000 + Math.random() * 3000);
-    } else if (currentAgent.tasks && taskIndex >= currentAgent.tasks.length) {
-      clearInterval(interval);
-      activeIntervals.delete(id);
-    }
-  }, 4000 + Math.random() * 2000);
-
-  activeIntervals.set(id, interval);
-}
-
 // Cleanup on exit
 process.on('SIGINT', () => {
   console.log('\n[Dashboard] Shutting down...');
@@ -1272,7 +1457,9 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-server.listen(PORT, HOST, () => {
+const startupPromise = Promise.all([restorePromise, verificationPolicy]);
+
+startupPromise.then(() => server.listen(PORT, HOST, () => {
   const usingHttps = fs.existsSync(certPath) && fs.existsSync(keyPath);
   const httpsProt = usingHttps ? 'https' : 'http';
   const httpProt = 'http';
@@ -1289,4 +1476,7 @@ server.listen(PORT, HOST, () => {
     console.log(`  ✦ No SSL certs found. Mic may not work on LAN. Run generate_cert.sh`);
   }
   console.log();
+})).catch(error => {
+  console.error('[Harness] Startup failed:', error);
+  process.exitCode = 1;
 });

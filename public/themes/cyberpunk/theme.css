@@ -1,0 +1,51 @@
+/* ── Neon Singularity Theme (Cyberpunk) ── */
+
+:root {
+  --primary: #00ffcc; /* Cyan neon */
+  --secondary: #ff00ff; /* Magenta neon */
+  --bg: #050505;
+  --surface: rgba(10, 10, 15, 0.85);
+  --surface-hover: rgba(0, 255, 204, 0.1);
+  --border: rgba(0, 255, 204, 0.3);
+  --text-primary: #00ffcc;
+  --text-secondary: #008877;
+  --success: #33ff33;
+  --warning: #ffff00;
+  --danger: #ff0055;
+  --glass-blur: 8px;
+  --radius: 0px; /* Sharp corners for cyberpunk */
+  --radius-sm: 0px;
+  --shadow: 0 0 15px rgba(0, 255, 204, 0.4), inset 0 0 5px rgba(0, 255, 204, 0.2);
+  --transition: all 0.1s ease-in-out; /* Jittery fast transitions */
+  --glow-opacity: 0.8;
+  --sidebar-bg: rgba(0, 0, 0, 0.9);
+  --panel-bg: rgba(5, 5, 10, 0.95);
+  --add-card-border: #00ffcc;
+  --add-card-bg: rgba(0, 255, 204, 0.05);
+  --add-card-text: #00ffcc;
+  --add-card-hover-border: #ff00ff;
+  --add-card-hover-bg: rgba(255, 0, 255, 0.1);
+  --add-card-hover-text: #ff00ff;
+  --volume-bg: rgba(0, 255, 204, 0.2);
+  --input-bg: rgba(0, 0, 0, 0.5);
+}
+
+/* Cyberpunk mode doesn't really have a "light" mode, but we'll provide one just in case */
+body.light-mode {
+  --primary: #ff00ff;
+  --bg: #ffffff;
+  --text-primary: #000000;
+  --border: #ff00ff;
+}
+
+/* Custom theme override: Add scanlines to background */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size: 100% 4px, 3px 100%;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0.1;
+}

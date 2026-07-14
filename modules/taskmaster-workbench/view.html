@@ -1,0 +1,101 @@
+<div id="taskmaster-module" class="taskmaster-module glass">
+  <div class="taskmaster-hero">
+    <div class="taskmaster-brand">
+      <p class="taskmaster-eyebrow">Native dashboard module</p>
+      <h2>TaskMaster</h2>
+      <p class="taskmaster-description">
+        A native port of the VueJS Todo project. Tasks are stored in dashboard localStorage, with notes,
+        subtasks, search, filters, sorting, import/export, and inline editing.
+      </p>
+    </div>
+
+    <div class="taskmaster-stats">
+      <div class="taskmaster-stat-card">
+        <span>Total</span>
+        <strong id="taskmaster-stat-total">0</strong>
+      </div>
+      <div class="taskmaster-stat-card">
+        <span>Active</span>
+        <strong id="taskmaster-stat-active">0</strong>
+      </div>
+      <div class="taskmaster-stat-card">
+        <span>Done</span>
+        <strong id="taskmaster-stat-complete">0</strong>
+      </div>
+      <div class="taskmaster-stat-card">
+        <span>Subtasks</span>
+        <strong id="taskmaster-stat-subtasks">0</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="taskmaster-toolbar">
+    <label class="taskmaster-search-field" for="taskmaster-search-input">
+      <span>Search</span>
+      <input id="taskmaster-search-input" type="text" placeholder="Search tasks, notes, and subtasks…" autocomplete="off" spellcheck="false" />
+    </label>
+
+    <div class="taskmaster-toolbar-group">
+      <button class="taskmaster-filter-btn is-active" type="button" data-filter="all">All</button>
+      <button class="taskmaster-filter-btn" type="button" data-filter="pending">Pending</button>
+      <button class="taskmaster-filter-btn" type="button" data-filter="in-progress">In Progress</button>
+      <button class="taskmaster-filter-btn" type="button" data-filter="completed">Completed</button>
+    </div>
+
+    <div class="taskmaster-toolbar-group compact">
+      <select id="taskmaster-sort-select" class="taskmaster-select" aria-label="Sort tasks">
+        <option value="updated-desc">Recently updated</option>
+        <option value="created-desc">Newest</option>
+        <option value="created-asc">Oldest</option>
+        <option value="title-asc">Title A → Z</option>
+        <option value="title-desc">Title Z → A</option>
+        <option value="status">Status</option>
+      </select>
+      <button id="taskmaster-export-btn" class="taskmaster-action-btn" type="button">Export JSON</button>
+      <button id="taskmaster-import-btn" class="taskmaster-action-btn" type="button">Import JSON</button>
+      <button id="taskmaster-clear-done-btn" class="taskmaster-action-btn danger" type="button">Clear Completed</button>
+      <input id="taskmaster-import-input" type="file" accept="application/json,.json" hidden />
+    </div>
+  </div>
+
+  <div class="taskmaster-layout">
+    <section class="taskmaster-panel taskmaster-list-panel">
+      <div class="taskmaster-panel-heading">
+        <div>
+          <h3>Add a task</h3>
+          <p>Quick capture for tasks you want to track inside the dashboard.</p>
+        </div>
+        <span class="taskmaster-badge" id="taskmaster-save-state">Ready</span>
+      </div>
+
+      <form id="taskmaster-add-form" class="taskmaster-add-form">
+        <input id="taskmaster-add-title" type="text" maxlength="180" placeholder="What needs to get done?" autocomplete="off" required />
+        <textarea id="taskmaster-add-description" rows="3" maxlength="600" placeholder="Add a short description or context…"></textarea>
+        <div class="taskmaster-form-row">
+          <button class="taskmaster-action-btn primary" type="submit">Add Task</button>
+          <span class="taskmaster-form-hint">Enter to save • Stored locally in this dashboard</span>
+        </div>
+      </form>
+
+      <div class="taskmaster-panel-heading compact-top">
+        <div>
+          <h3>Task list</h3>
+          <p>Click a task to open the detail pane and edit it inline.</p>
+        </div>
+        <span class="taskmaster-badge neutral" id="taskmaster-visible-count">0 visible</span>
+      </div>
+
+      <div class="taskmaster-list" id="taskmaster-task-list">
+        <div class="taskmaster-empty-state">No tasks yet. Add your first item above.</div>
+      </div>
+    </section>
+
+    <section class="taskmaster-panel taskmaster-detail-panel">
+      <div id="taskmaster-detail" class="taskmaster-detail">
+        <div class="taskmaster-empty-state">
+          Select a task to edit its details, subtasks, status, and notes.
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

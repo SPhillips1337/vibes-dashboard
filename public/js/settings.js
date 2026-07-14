@@ -246,20 +246,40 @@
       let models = [];
 
       if (provider === 'ollama') {
-        // Test /api/tags and discover models
-        const resp = await fetch(`${hostUrl.replace(/\/+$/, '')}/api/tags`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        // Test /api/tags via proxy and discover models
+        const resp = await fetch('/api/llm/proxy/ollama-tags', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.Dashboard.csrfToken
+          },
+          body: JSON.stringify({ host: hostUrl })
+        });
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${resp.status}`);
+        }
         const data = await resp.json();
         models = (data.models || []).map(m => m.name);
         ok = true;
       } else if (provider === 'lm-studio' || provider === 'openai-compatible') {
         const key = document.getElementById('setting-openai-key')?.value || '';
-        const resp = await fetch(`${hostUrl.replace(/\/+$/, '')}/chat/completions`, {
+        // Use backend proxy to avoid CORS issues with local LLM hosts
+        const resp = await fetch('/api/llm/proxy/models', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(key ? { 'Authorization': `Bearer ${key}` } : {}) },
-          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }),
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.Dashboard.csrfToken
+          },
+          body: JSON.stringify({ host: hostUrl, key: key })
         });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        resultEl.textContent = `✅ Connected (${data.data?.length || 0} models)`;
+        resultEl.className = 'test-result success';
         ok = true;
       } else {
         throw new Error('No provider selected');
@@ -377,7 +397,10 @@
     // Save to server filesystem
     fetch('/api/settings', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': window.Dashboard.csrfToken
+      },
       body: JSON.stringify({
         'vibes-voice-prefs': { voice, rate, volume, feedbackEnabled },
         'vibes-general-prefs': { autoLaunchOnCommand, wakeWordEnabled, theme },

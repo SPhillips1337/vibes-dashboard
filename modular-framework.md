@@ -94,6 +94,16 @@ You can reference this schema in your workspace to enable automatic IDE linting 
       "type": "string",
       "description": "Path to the JavaScript controller file relative to the module folder root (typically 'script.js')."
     },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of module IDs that must be loaded before this module."
+    },
+    "useShadowDOM": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, the module view will be encapsulated in a Shadow Root for CSS/DOM isolation."
+    },
     "speechCommands": {
       "type": "array",
       "description": "Speech command intents that hook into the global audio/voice controls.",
@@ -138,73 +148,44 @@ You can reference this schema in your workspace to enable automatic IDE linting 
 | `css` | `string` | No | Relative path to stylesheet file (e.g., `style.css`). |
 | `html` | `string` | **Yes** | Relative path to layout template (e.g., `view.html`). |
 | `js` | `string` | No | Relative path to logic controller script (e.g., `script.js`). |
+| `dependencies` | `array` | No | List of module IDs that must be loaded first. |
+| `useShadowDOM` | `boolean` | No | Enable Shadow DOM encapsulation (isolation mode). |
 | `speechCommands` | `array` | No | List of voice intent definitions to route back to this module. |
 
 ---
 
-## 🚀 Module Loading Lifecycle
+## 📡 Interaction Patterns & Lifecycle
 
-When the main client application initializes, it executes the following sequential steps:
+### 3.1 Global Dashboard Namespace
+Modules interact with the core via the `window.Dashboard` object.
 
-1. **Discovery Request**: The client requests `/api/modules` from the Express server.
-2. **Backend Scan**:
-   - The backend checks each child directory in `/modules` for `manifest.json`.
-   - If found, it reads the manifest, resolves file paths, reads the specified `html` file, and attaches it as `htmlContent`.
-3. **Frontend Insertion**:
-   - **Stylesheets**: Appended to the document `<head>` dynamically.
-   - **View Panels**: A new wrapper `.view-panel.main-view.hidden` is created with an ID format of `view-[module-id]`. Its inner HTML is filled with the module's `htmlContent` and appended to `#views-container`.
-   - **Navigation Buttons**: A button is injected into the sidebar navigation bar with the SVG content. It is hooked to display the view when clicked.
-   - **Speech Commands**: Triggers are registered into the global `window.VoiceCommands` dictionary.
-   - **Scripts**: The javascript controller is loaded asynchronously using script injection (`async = false` to guarantee ordered execution if multiple scripts depend on each other).
-
----
-
-## 🎛 Global SDK & API Integration
-
-When writing your module's `script.js`, your code runs in the context of the main page. A global namespace `window.Dashboard` is exposed to allow custom logic interaction.
-
-### `window.Dashboard` Namespace
+### 3.2 Advanced Lifecycle Registration
+For robust modules that manage background tasks (visualizers, intervals, sockets), use the `registerModuleLogic` API.
 
 ```javascript
-// Access the global socket connection
-const socket = window.Dashboard.socket; 
+window.Dashboard.registerModuleLogic('my-module-id', {
+  /**
+   * onInit: Called once after the module script and HTML are injected.
+   * @param {HTMLElement|ShadowRoot} panel - The root container for the module.
+   */
+  onInit: (panel) => {
+    // Initial DOM binding
+  },
 
-// Access active agent states
-const activeAgents = window.Dashboard.agents; // JS Map<agentId, agentObject>
+  /**
+   * onActivate: Called whenever the module view becomes active.
+   */
+  onActivate: () => {
+    // Resume animations/timers
+  },
 
-// Show a specific module's panel programmatically
-window.Dashboard.showView('orchestrator');
-```
-
-### Global Custom Events
-Your module scripts can listen to system events dispatched on the `document` object:
-
-| Event Name | Detail Payload (`e.detail`) | Trigger Condition |
-| :--- | :--- | :--- |
-| `dashboard:view-changed` | `{ id: "module-id" }` | Fired when a different view is activated. |
-| `dashboard:agents-snapshot` | `[ agentObjects ]` | Fired on client connection with initial agent statuses. |
-| `dashboard:agent-created` | `agentObject` | Fired when a new agent mission is initialized. |
-| `dashboard:agent-updated` | `agentObject` | Fired when an agent changes status, reports progress, or triggers an alert. |
-| `dashboard:agent-removed` | `{ id: "agent-id" }` | Fired when an agent is closed or terminated. |
-| `dashboard:agent-log` | `{ id: "agent-id", log: "message" }` | Fired when a command or background agent outputs logs. |
-
-*Example script setup:*
-```javascript
-(function () {
-  'use strict';
-
-  // Perform setup when our view is loaded
-  document.addEventListener('DOMContentLoaded', () => {
-    const myPanel = document.getElementById('view-my-module');
-    if (!myPanel) return;
-
-    // Listen to agent updates to refresh telemetry UI
-    document.addEventListener('dashboard:agent-updated', (e) => {
-      const updatedAgent = e.detail;
-      console.log(`Telemetry updated for ${updatedAgent.mission}: ${updatedAgent.progress}%`);
-    });
-  });
-})();
+  /**
+   * onDeactivate: Called when user switches to another module.
+   */
+  onDeactivate: () => {
+    // Pause CPU-intensive tasks
+  }
+});
 ```
 
 ---
@@ -229,27 +210,10 @@ font-family: 'Outfit', sans-serif;
 font-family: 'Inter', sans-serif;
 ```
 
-### Premium UI Component Scaffold
-Below is a reference snippet showing how to style a container to conform to the glassmorphic theme:
-
-```css
-.my-module-panel {
-  background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-glass);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-  padding: 24px;
-  color: var(--text-main);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.my-module-panel:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px 0 var(--glow-color);
-}
-```
+### Shadow DOM (Isolation Mode)
+By setting `"useShadowDOM": true` in the manifest, the core loader will wrap the module view in a Shadow Root. 
+- **Pros**: Complete CSS isolation. Your styles won't bleed out, and global styles (mostly) won't bleed in.
+- **Cons**: Standard global CSS variables still apply, but some global utility classes might not be available inside the shadow.
 
 ---
 
@@ -270,11 +234,6 @@ Because all modules execute in the top-level window context, security is paramou
   targetContainer.appendChild(svgDoc.documentElement);
   ```
 
-### 2. Sandbox Isolation for Web Views
-If your module loads frames or remote web portals, always apply strict sandbox rules:
-* Always include the `sandbox` attribute on `<iframe>` tags.
-* **WARNING**: Never combine `allow-scripts` and `allow-same-origin` inside an iframe loading untrusted remote content, as this allows the guest site to escape its sandbox and control the top-level parent window.
-
 ---
 
 ## 📝 Walkthrough: Creating a Custom Module ("System Monitor")
@@ -293,85 +252,30 @@ Create `modules/sys-monitor/`.
   "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"2\" y=\"2\" width=\"20\" height=\"8\" rx=\"2\" /><rect x=\"2\" y=\"14\" width=\"20\" height=\"8\" rx=\"2\" /><line x1=\"6\" y1=\"6\" x2=\"6.01\" y2=\"6\" /><line x1=\"6\" y1=\"18\" x2=\"6.01\" y2=\"18\" /></svg>",
   "css": "style.css",
   "html": "view.html",
-  "js": "script.js",
-  "speechCommands": [
-    {
-      "intent": "NAV_TELEMETRY",
-      "triggers": ["show telemetry", "go to telemetry", "telemetry", "system monitor"],
-      "label": "Show Telemetry",
-      "icon": "📊"
-    }
-  ]
+  "js": "script.js"
 }
 ```
 
-### Step 3: Define `modules/sys-monitor/view.html`
-```html
-<div class="monitor-grid">
-  <div class="monitor-card glass">
-    <h3>CPU Utilization</h3>
-    <div class="progress-bar">
-      <div id="cpu-bar" class="progress-fill" style="width: 0%"></div>
-    </div>
-    <span id="cpu-text" class="stat-value">0%</span>
-  </div>
-</div>
-```
-
-### Step 4: Define `modules/sys-monitor/style.css`
-```css
-.monitor-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
-  padding: 20px;
-}
-
-.monitor-card {
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid var(--border-glass);
-  background: var(--bg-glass);
-}
-
-.progress-bar {
-  width: 100%;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  overflow: hidden;
-  margin: 12px 0;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--glow-color);
-  transition: width 0.5s ease-out;
-}
-```
-
-### Step 5: Define `modules/sys-monitor/script.js`
+### Step 3: Define `modules/sys-monitor/script.js`
 ```javascript
 (function () {
   'use strict';
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const cpuBar = document.getElementById('cpu-bar');
-    const cpuText = document.getElementById('cpu-text');
+  let cpuInterval = null;
 
-    if (!cpuBar || !cpuText) return;
-
-    // Simulate real-time hardware polling
-    setInterval(() => {
-      // Only update if our view is currently active
-      if (window.Dashboard.activeModuleId !== 'sys-monitor') return;
-
-      const randomUsage = Math.floor(Math.random() * 100);
-      
-      // Update UI securely using textContent
-      cpuText.textContent = `${randomUsage}%`;
-      cpuBar.style.width = `${randomUsage}%`;
-    }, 2000);
+  window.Dashboard.registerModuleLogic('sys-monitor', {
+    onInit: (panel) => {
+      console.log('Telemetry system online');
+    },
+    onActivate: () => {
+      cpuInterval = setInterval(() => {
+        const usage = Math.floor(Math.random() * 100);
+        document.getElementById('cpu-text').textContent = `${usage}%`;
+      }, 2000);
+    },
+    onDeactivate: () => {
+      clearInterval(cpuInterval);
+    }
   });
 })();
 ```

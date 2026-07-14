@@ -2,131 +2,150 @@
 
 ## System Overview
 
-Vibes Dashboard is a full-stack application with a Node.js/Express backend and a vanilla HTML/CSS/JS frontend. Communication between the two layers happens via REST HTTP endpoints and Socket.io WebSockets.
+Vibes Dashboard is a pluggable command center designed around a Node.js/Express backend and a vanilla HTML/CSS/JS frontend. Communication between layers occurs via secure REST endpoints and Socket.io WebSockets.
 
 ```
-┌────────────────────────────────────────────────┐
-│                   Browser                       │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │  app.js  │  │ music.js │  │   voice.js   │  │
-│  │ (agents) │  │ (player) │  │ (speech/TTS) │  │
-│  └──────────┘  └──────────┘  └──────────────┘  │
-│  ┌──────────┐  ┌──────────┐                     │
-│  │background│  │settings.js│                    │
-│  │(particles)│  │ (config) │                    │
-│  └──────────┘  └──────────┘                     │
-│         ↕ REST + Socket.io                      │
-├────────────────────────────────────────────────┤
-│              Node.js Server                      │
-│  ┌────────────────┐  ┌──────────────────────┐   │
-│  │  Express (REST) │  │  Socket.io (Events)  │   │
-│  └────────────────┘  └──────────────────────┘   │
-│  ┌──────────────────────────────────────────┐    │
-│  │           VibesBridge                      │   │
-│  │     (JSON-RPC over child process stdio)    │   │
-│  └──────────────────────────────────────────┘    │
-│              ↕ stdin/stdout (JSON-RPC)           │
-├────────────────────────────────────────────────┤
-│         Vibes MCP Server (child process)         │
-│         (tsx src/mcp/server.ts)                  │
-└────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                        Browser                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────┐          │
+│  │  app.js  │  │ music.js │  │   voice.js   │          │
+│  │ (agents) │  │ (player) │  │ (speech/TTS) │          │
+│  └──────────┘  └──────────┘  └──────────────┘          │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────┐          │
+│  │background│  │settings.js│ │   Three.js   │          │
+│  │ (2D/3D)  │  │ (config) │  │ (WebGL scene)│          │
+│  └──────────┘  └──────────┘  └──────────────┘          │
+│  ┌──────────────────────────────────────────┐          │
+│  │             Modular Panels               │          │
+│  │  (Orchestrator, Terminal, Browser,      │          │
+│  │   LinkedIn Workbench, Music, Manager)    │          │
+│  └──────────────────────────────────────────┘          │
+│         ↕ REST + Socket.io                             │
+├────────────────────────────────────────────────────────┤
+│                     Node.js Server                     │
+│  ┌────────────────┐  ┌──────────────────────┐          │
+│  │  Express (REST) │  │  Socket.io (Events)  │          │
+│  └────────────────┘  └──────────────────────┘          │
+│  ┌──────────────────────────────────────────┐          │
+│  │            VibesBridge                   │          │
+│  │  (JSON-RPC over child process stdio)    │          │
+│  └──────────────────────────────────────────┘          │
+│  ┌──────────────┐  ┌──────────────┐                    │
+│  │  LLM Proxy   │  │  Theme Scan  │                    │
+│  └──────────────┘  └──────────────┘                    │
+│              ↕ stdin/stdout (JSON-RPC)                 │
+├────────────────────────────────────────────────────────┤
+│         Vibes MCP Server (child process)               │
+│         (tsx src/mcp/server.ts)                        │
+└────────────────────────────────────────────────────────┘
 ```
 
-## Backend
+---
+
+## 📂 Backend Architecture
 
 ### `server/index.js`
-
-The main Express server that:
-- Serves static frontend files from `public/`
-- Provides REST API endpoints for agent queries and audio track listing
-- Manages Socket.io connections for real-time agent state
-- Maintains an in-memory `Map` of active agents
-- Automatically enables HTTPS when `certs/cert.pem` and `certs/key.pem` exist
+The core application server:
+* **Static Asset Delivery**: Serves standard resources from `public/` and modular subviews from `modules/`.
+* **Session & Guarding**: Validates TLS connections, enforces Operator/Admin privileges (RBAC), and checks CSRF tokens on mutate requests.
+* **Jamendo Bridge**: Processes keywords, queries Jamendo's API endpoints, and registers virtual streams to `/data/music/saved_playlist.json`.
+* **LLM Proxy Gateways**: Proxies tags and models requests to avoid browser-level CORS errors.
+* **Theme Scanner**: Auto-discovers `.css` stylesheet themes from `public/themes/*/`.
+* **LinkedIn Calendar**: Parses and writes content changes to calendar formats and triggers background python import tasks.
 
 ### `server/vibes-bridge.js`
+The `VibesBridge` handles child process spawning:
+* Launches and monitors `tsx src/mcp/server.ts`.
+* Translates between dashboard settings and Vibes model specifications.
+* Pipes log lines and progress to client sockets.
 
-The `VibesBridge` class manages spawning child processes running the Vibes MCP server (`tsx src/mcp/server.ts`). Communication uses JSON-RPC 2.0 over stdin/stdout. Key features:
-- Spawns and tracks multiple agent instances
-- Loads environment variables from the Vibes repo's `.env` file
-- Overrides LLM preferences (host URL, model, API key) from browser settings
-- Emits events for status updates, errors, and exit codes
-- Implements request/response pattern with configurable timeouts
+### `server/coordination-adapter.js`
+Dependency-injected boundary to local Agent Communication MCP. Production uses `AGENT_COMM_MCP_URL`, `AGENT_COMM_MCP_TOKEN`, and a bounded timeout; tests inject fixture clients. Upstream tool names live in one `TOOL_NAMES` mapping. The adapter normalizes provider readiness and activity, derives approval/verification/artifact projections, and emits stable unavailable reasons without exposing secrets or raw errors. Its protected `GET /api/control-center` route returns `503` rather than simulated data when unavailable.
 
-## Frontend
+### `server/harness/`
+The durable run core uses versioned, size-limited event envelopes (`event-contract.js`), filesystem persistence (`run-store.js`), deterministic replay (`run-projector.js`), and a lifecycle boundary (`run-service.js`). Each run has immutable initial metadata in `run.json` and an append-only `events.jsonl`; snapshot replacements are atomic and concurrent event appends are serialized per run. `RunService` generates event IDs and harness actors internally, persists before emitting, enforces transitions, and writes only allowlisted `plan.json` and `verification.json` documents.
+
+Startup restoration completes before the server listens. Terminal, approval, and blocked runs retain their state. Planning, execution, and verification runs receive an appended `run.restored` event and project as `interrupted`; no child process is restarted. Truncated final JSONL records are ignored with warnings exposed on the run projection. The server's `agents` map and existing `agent-created`, `agent-updated`, and `agent-log` messages are compatibility projections only. `[TASK_STATUS]` stderr is parsed by `agent-compat.js` into typed task events rather than mutating authority state.
+
+Execution and verification are separate trust boundaries: `execution.claimed_complete` automatically enters one attempt-keyed verification orchestration seam; only `verification.passed` projects `completed`, while `verification.failed` projects `failed`. `verification-policy.js` loads server-owned allowlisted argv recipes from `HARNESSES_VERIFICATION_POLICY`; `verifier.js` uses `shell:false`, a fixed run-workspace cwd, bounded environment/time/output, and containment-safe artifact validation. Every artifact result is persisted as `artifact.validated` before the final outcome, and `verification.json` retains command evidence or a verifier-grounded failure record. Real runs fail closed when no checks are configured. Secret-bearing fields are rejected or structurally redacted before persistence. Runtime run directories under `data/harness/runs/` are local, retained as whole directories, and excluded from version control. See [ADR-0005](adr/ADR-0005-durable-harness-runs.md).
+
+Demo runs are prototype fixtures only. Their plan and completion records carry `demo_fixture_only: true`, bypass external command verification, and must not be treated as evidence that a real workspace task was verified.
+
+`server/harness-api.js` is the read-only HTTP boundary. It validates run IDs and bounded pagination, translates filesystem errors to stable public errors, and recursively bounds/redacts response values. The Orchestrator Timeline and Evidence tabs consume these endpoints; Socket.io remains a refresh signal rather than an unbounded data transport.
+
+Child runs have independent event logs and verification, immutable server-derived lineage, and a maximum depth of four. Parent reads aggregate at most 100 direct child summaries; they never recurse. Required children come only from the strict persisted plan/server policy and are verified through targeted direct lookups, never the display cap. Parent-scoped operation intents reserve deterministic child IDs before crossing the parent/child directory boundary; retry repairs missing child/link events without duplicates. Checkpoints append authoritative bounded metadata events before derived documents, and restoration regenerates missing documents. Resume is limited to interrupted/blocked runs, appends a retry request, and never launches work.
+
+Retention has no scheduler and defaults to dry-run. Operators must explicitly inject `enableDestructiveRetention` (the server maps `HARNESSES_RETENTION_DELETE_ENABLED=true`) before deletion is possible. Age, count, and bounded-byte eligibility are independent; active lineage is protected in both directions. Deletion revalidates with `lstat`, atomically renames into a root-owned quarantine name, then removes quarantine. This narrows source substitution; the trusted single-writer/root-owner residual remains. Operation intents make cross-directory child creation repairable, not transactional. Back up and restore by stopping the single writer and copying whole run directories; never copy only `events.jsonl` or edit a retained log.
+
+Exports are authenticated, bounded, redacted JSON and omit cwd/internal store paths. They are audit/backup aids, not lossless replacements for a stopped-writer directory backup. Prototype boundaries remain: no automatic child spawning from model text, no rollback engine, no scheduled pruning, and no automatic resume.
+
+---
+
+## 🎨 Frontend Architecture
 
 ### `public/index.html`
-
-Single-page application entry point with:
-- Canvas background for particle simulation
-- Sidebar navigation (Dashboard, Logs, Visualizer, Music, Settings)
-- Dashboard grid for agent cards
-- Music player panel with visualizer
-- Creation modal (3-step: input → loading → review)
-- Agent detail overlay with live logs
-- Settings modal with 4 tabs (General, Voice, LLM Provider, Orchestration)
-- Voice help modal and confirmation dialogs
+The Single Page Application shell containing:
+* Floating sidebar layout with ordering configuration.
+* Frosted glass card grids and forms.
+* Dock tab system to manage minimized browser panels.
+* Background element bindings for canvas rendering.
 
 ### `public/js/app.js`
-
-Core application logic handling:
-- Agent CRUD operations via Socket.io events
-- DOM rendering of agent cards in the dashboard grid
-- Modal state management (creation flow, detail view)
-- Stats counter updates (active, completed, tasks done)
-- Toast notification system
-- Theme toggling (dark/light mode)
+The central state hub for the frontend:
+* Fetches module manifests from `/api/modules` and dynamically appends styling, templates, and scripts.
+* Implements the client-side router and view transitions.
+* Manages Socket.io hooks and updates active count widgets.
+* Handles login forms and theme sheet binding.
 
 ### `public/js/background.js`
-
-Canvas-based particle simulation:
-- Renders organic particle field with subtle connections
-- Reacts to audio energy from the music player
-- Used as the live background behind all UI elements
-
-### `public/js/music.js`
-
-Audio player module:
-- Track management (play, pause, next, previous, volume)
-- Playlist rendering from `/api/audio`
-- Frequency analysis using `AnalyserNode` for the visualizer
-- Persists playback state and volume to `localStorage`
-- Integrates with background canvas for reactive particle effects
+A dual-layer visualizer:
+* **2D Canvas Layer**: Draws floating organic nodes with interactive spring forces, connection lines, and lightning storm generators.
+* **WebGL Container**: Leverages **Three.js** to manage GPU-accelerated scenes (Cosmic Anomaly galaxy, Liquid Fluid domain noise, and Volumetric Cloud rays).
+* **Audio-Reactivity**: Tracks average frequencies and energy levels from the active audio analyser.
 
 ### `public/js/voice.js`
+The voice interaction controller:
+* Listens continuously for the wake phrase **"Vibes"** using Web Speech Recognition.
+* Triggers audio chime alerts and temporary volume ducking during microphone capture.
+* Processes intent mapping (navigation, launch command, theme switching, cancellation).
+* Prompts confirmations for destructive options and verbalizes responses using Synthesis.
 
-Voice control system:
-- Web Speech API `SpeechRecognition` for voice command capture
-- Wake word ("Vibes") detection for hands-free activation
-- Text-to-speech (TTS) feedback using `SpeechSynthesis`
-- Voice help modal with available commands
-- Settings integration for rate, volume, and voice selection
+### `public/js/music.js`
+The background playback system:
+* Connects the HTML5 `Audio` element to Web Audio `AudioContext`.
+* Employs an `AnalyserNode` to export frequency bins for the visualizer.
 
-### `public/js/settings.js`
+---
 
-Settings panel manager:
-- Tab switching (General, Voice, LLM Provider, Orchestration)
-- Persists settings to `localStorage`
-- LLM provider configuration (Ollama, LM Studio, OpenAI-compatible)
-- Test connection button for LLM providers
-- Theme, voice, wake word, and execution mode toggles
+## 🔌 Core Modular Panel Directory (`/modules/`)
 
-### `public/css/style.css`
+Modules are manifest-driven views that the core loads. Key panels include:
 
-Complete design system with:
-- CSS custom properties for theming (dark + light mode)
-- Glassmorphism components (`backdrop-filter: blur()`, semi-transparent backgrounds)
-- Agent card, modal, sidebar, and music player styling
-- Animations and transitions
-- Toast notifications and confirmation dialogs
-- Responsive scrollbar styling
+### `orchestrator`
+* **Path**: `modules/orchestrator/`
+* Renders agent mission forms, progress gauges, and task lists. Handles dictations.
 
-## Data Flow
+### `terminal`
+* **Path**: `modules/terminal/`
+* Emulates terminal viewports to capture execution logs.
 
-1. User opens the dashboard — browser connects via Socket.io
-2. Server sends `agents-snapshot` with current agents
-3. User clicks "+" to launch an agent — `agent-create` event sent
-4. Server creates agent, runs planning phase, emits `agent-updated` with proposed tasks
-5. User accepts tasks via `agent-accept`
-6. Server begins execution (real Vibes or demo simulation)
-7. Progress and logs streamed via `agent-updated` and `agent-log` events
-8. Agent completes or can be terminated via `agent-terminate`
+### `web-browser`
+* **Path**: `modules/web-browser/`
+* Encapsulates sandboxed web page navigation through local proxies to prevent frame blocking.
+
+### `music`
+* **Path**: `modules/music/`
+* Renders player playlists, volume adjustments, and Jamendo discovery panels.
+
+### `linkedin-workbench`
+* **Path**: `modules/linkedin-workbench/`
+* Coordinates social media content calendars and triggers RSS scrapers.
+
+### `module-manager`
+* **Path**: `modules/module-manager/`
+* Controls sidebar positioning and dynamically manages panel listings.
+
+### `control-center`
+* **Path**: `modules/control-center/`
+* Displays provider readiness, recent activity, pending approvals, verification outcomes, and artifact references.
+* Uses a Node-testable deterministic view model and safe DOM creation/`textContent` for every live value. Explicit empty and unavailable states replace demo or random values; responsive glass panels collapse at narrow widths.

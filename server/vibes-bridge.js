@@ -8,6 +8,24 @@ const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+
+const MINIMAL_PATH = '/usr/bin:/bin';
+const ALLOWED_VIBES_ENV_KEYS = new Set([
+  'OPENAI_API_KEY','OPENAI_BASE_URL','OPENAI_MODEL',
+  'ANTHROPIC_API_KEY','ANTHROPIC_BASE_URL','ANTHROPIC_MODEL',
+  'GOOGLE_API_KEY','GEMINI_API_KEY','GEMINI_MODEL',
+  'GROQ_API_KEY','GROQ_MODEL','MISTRAL_API_KEY','MISTRAL_MODEL',
+  'OPENROUTER_API_KEY','OPENROUTER_BASE_URL','OPENROUTER_MODEL',
+  'DEEPSEEK_API_KEY','DEEPSEEK_BASE_URL','DEEPSEEK_MODEL',
+  'OLLAMA_BASE_URL','OLLAMA_MODEL','OLLAMA_API_KEY','CONTEXT_WINDOW'
+]);
+
+function mergeChildEnvironment(protectedEnv, loadedEnv) {
+  const merged={...protectedEnv};
+  for (const [key,value] of Object.entries(loadedEnv||{})) if (ALLOWED_VIBES_ENV_KEYS.has(key)) merged[key]=value;
+  return merged;
+}
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -35,10 +53,11 @@ function parseEnvFile(filePath) {
 }
 
 class VibesBridge extends EventEmitter {
-  constructor() {
+  constructor({ onSensitiveValues = () => {} } = {}) {
     super();
     /** @type {Map<string, VibessInstance>} */
     this.instances = new Map();
+    this.onSensitiveValues = onSensitiveValues;
   }
 
   /**
@@ -49,7 +68,7 @@ class VibesBridge extends EventEmitter {
    * @returns {Promise<object>} The planned mission with tasks.
    */
   async createAgent(id, cwd, mission, llmPrefs) {
-    const instance = new VibesInstance(id, cwd, llmPrefs);
+    const instance = new VibesInstance(id, cwd, llmPrefs, values => this.onSensitiveValues(id, values));
     this.instances.set(id, instance);
 
     instance.on('status', (data) => this.emit('agent-status', { id, ...data }));
@@ -135,7 +154,7 @@ class VibesBridge extends EventEmitter {
 }
 
 class VibesInstance extends EventEmitter {
-  constructor(id, cwd, llmPrefs) {
+  constructor(id, cwd, llmPrefs, onSensitiveValues = () => {}) {
     super();
     this.id = id;
     this.cwd = cwd;
@@ -145,6 +164,8 @@ class VibesInstance extends EventEmitter {
     this.pendingRequests = new Map();
     this.initialized = false;
     this.buffer = '';
+    this.safeModeDir = null;
+    this.onSensitiveValues = onSensitiveValues;
   }
 
   /**
@@ -154,13 +175,30 @@ class VibesInstance extends EventEmitter {
     const vibesRoot = process.env.VIBES_PATH || path.join(require('os').homedir(), 'Vibes');
     const serverScript = path.join(vibesRoot, 'src', 'mcp', 'server.ts');
 
-    // 1. Start with the dashboard server's process environment
-    const envVars = { ...process.env };
+    const safeModeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibes-child-'));
+    fs.chmodSync(safeModeDir, 0o700);
+    const safeDirs = {
+      HOME: path.join(safeModeDir, 'home'),
+      XDG_CONFIG_HOME: path.join(safeModeDir, 'config'),
+      XDG_CACHE_HOME: path.join(safeModeDir, 'cache'),
+      TMPDIR: path.join(safeModeDir, 'tmp')
+    };
+    Object.values(safeDirs).forEach(dir => fs.mkdirSync(dir, { mode: 0o700 }));
+    this.safeModeDir = safeModeDir;
+
+    const envVars = {
+      LANG: process.env.LANG || 'C.UTF-8',
+      PATH: MINIMAL_PATH,
+      ...safeDirs
+    };
 
     // 2. Load the Vibes repository's own .env file to get core environment variables (like model, keys, etc.)
     const vibesDotEnvPath = path.join(vibesRoot, '.env');
     const vibesEnv = parseEnvFile(vibesDotEnvPath);
-    Object.assign(envVars, vibesEnv);
+    this.onSensitiveValues(Object.entries(vibesEnv)
+      .filter(([key, value]) => ALLOWED_VIBES_ENV_KEYS.has(key) && /(?:KEY|TOKEN|SECRET|PASSWORD)$/i.test(key) && typeof value === 'string' && value)
+      .map(([, value]) => value));
+    Object.assign(envVars, mergeChildEnvironment(envVars, vibesEnv));
 
     // 3. Override with dynamic LLM preferences configured in the user's browser, if available
     if (this.llmPrefs && this.llmPrefs.provider !== 'disabled') {
@@ -180,10 +218,14 @@ class VibesInstance extends EventEmitter {
     if (fs.existsSync(localTsx)) {
       tsxBinary = localTsx;
     }
+    if (path.isAbsolute(tsxBinary)) {
+      envVars.PATH = `${path.dirname(tsxBinary)}:${MINIMAL_PATH}`;
+    }
 
     this.process = spawn(tsxBinary, ['--no-warnings', serverScript], {
       cwd: this.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
+      detached: true,
       env: {
         ...envVars,
         VIBES_LAUNCH_DIR: this.cwd,
@@ -212,7 +254,10 @@ class VibesInstance extends EventEmitter {
     });
 
     this.process.on('error', (err) => this.emit('error', err));
-    this.process.on('exit', (code) => this.emit('exit', code));
+    this.process.on('exit', (code) => {
+      this.cleanupSafeMode();
+      this.emit('exit', code);
+    });
 
     // Initialize the MCP protocol handshake
     await this.initialize();
@@ -342,10 +387,14 @@ class VibesInstance extends EventEmitter {
     if (this.process) {
       try {
         this.process.stdin.end();
-        this.process.kill('SIGTERM');
+        if (process.platform !== 'win32' && this.process.pid) process.kill(-this.process.pid, 'SIGTERM');
+        else this.process.kill('SIGTERM');
         setTimeout(() => {
           if (this.process && !this.process.killed) {
-            this.process.kill('SIGKILL');
+            try {
+              if (process.platform !== 'win32' && this.process.pid) process.kill(-this.process.pid, 'SIGKILL');
+              else this.process.kill('SIGKILL');
+            } catch {}
           }
         }, 3000);
       } catch {
@@ -356,7 +405,15 @@ class VibesInstance extends EventEmitter {
     this.pendingRequests.forEach(({ reject }) => reject(new Error('Agent terminated')));
     this.pendingRequests.clear();
     this.initialized = false;
+    this.cleanupSafeMode();
+  }
+
+  cleanupSafeMode() {
+    if (this.safeModeDir) {
+      fs.rm(this.safeModeDir, { recursive: true, force: true }, () => {});
+      this.safeModeDir = null;
+    }
   }
 }
 
-module.exports = { VibesBridge };
+module.exports = { VibesBridge, mergeChildEnvironment };
