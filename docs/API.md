@@ -42,6 +42,20 @@ Retrieves a valid CSRF token mapped to the session for header verification on st
 
 ## 🤖 Vibes Agents & Process Bridge
 
+### Bounded durable harness reads
+All routes below are authenticated `GET` requests (session cookie required; CSRF is not required for reads). Invalid pagination returns `400`, unknown runs return `404`, and storage failures return a stable redacted `500` response.
+
+* `GET /api/harness/runs?offset=0&limit=25` — newest-first run page; default 25, maximum 100.
+* `GET /api/harness/runs/:id` — projected run detail without store paths or secret metadata.
+* `GET /api/harness/runs/:id/events?cursor=0&limit=100` — append-order typed events; maximum page 200 and bounded log strings. `cursor` is an opaque decimal byte cursor returned as `nextCursor`; the deprecated `offset` query/response alias carries the same opaque byte value.
+* `GET /api/harness/runs/:id/evidence` — verification status, checks, artifacts, failure record, and their event IDs.
+* `GET /api/harness/runs/:id/children?offset=0&limit=100` — shallow child status/verification summaries; maximum 100 and never recursive.
+* `GET /api/harness/runs/:id/export?maxBytes=262144` — bounded redacted JSON export of metadata, events, evidence, and checkpoint metadata (1 KiB–2 MiB). Excludes cwd and internal paths and reports truncation warnings.
+
+List responses use `{ items, total, offset, limit, hasMore, scanTruncated, warnings }`; event responses use `{ items, cursor, nextCursor, limit, hasMore, warnings }` (with deprecated byte-valued `offset` aliases). Run metadata scanning is capped and warnings report when the bounded directory selection is incomplete. Evidence output is bounded at persistence and response boundaries; it never returns raw event files or an unbounded stdout stream.
+
+Child creation, checkpoint recording/resume, and retention pruning are trusted server/controller service seams only. Child/checkpoint/resume operations require a bounded operation key; reuse with a conflicting canonical payload is rejected. Resume accepts only interrupted or blocked runs and does not launch. Export `maxBytes` is a true `JSON.stringify` byte bound with a tiny-envelope fallback. Retention remains dry-run by default and reports per-run eligible/deleted/error status. There is intentionally no public mutating REST endpoint for agent-controlled spawning, rollback, or deletion.
+
 ### `GET /api/agents`
 Returns the legacy agent projection of durable harness runs. The compatibility `agents` cache is rebuilt from append-only run events at startup; it is not authoritative. Interrupted work is returned with `status: "interrupted"` and is never automatically resumed. Execution success claims appear as `verifying` until an external verifier passes.
 

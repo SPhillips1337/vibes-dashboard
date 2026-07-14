@@ -11,6 +11,21 @@ const fs = require('fs');
 const os = require('os');
 
 const MINIMAL_PATH = '/usr/bin:/bin';
+const ALLOWED_VIBES_ENV_KEYS = new Set([
+  'OPENAI_API_KEY','OPENAI_BASE_URL','OPENAI_MODEL',
+  'ANTHROPIC_API_KEY','ANTHROPIC_BASE_URL','ANTHROPIC_MODEL',
+  'GOOGLE_API_KEY','GEMINI_API_KEY','GEMINI_MODEL',
+  'GROQ_API_KEY','GROQ_MODEL','MISTRAL_API_KEY','MISTRAL_MODEL',
+  'OPENROUTER_API_KEY','OPENROUTER_BASE_URL','OPENROUTER_MODEL',
+  'DEEPSEEK_API_KEY','DEEPSEEK_BASE_URL','DEEPSEEK_MODEL',
+  'OLLAMA_BASE_URL','OLLAMA_MODEL','OLLAMA_API_KEY','CONTEXT_WINDOW'
+]);
+
+function mergeChildEnvironment(protectedEnv, loadedEnv) {
+  const merged={...protectedEnv};
+  for (const [key,value] of Object.entries(loadedEnv||{})) if (ALLOWED_VIBES_ENV_KEYS.has(key)) merged[key]=value;
+  return merged;
+}
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -38,10 +53,11 @@ function parseEnvFile(filePath) {
 }
 
 class VibesBridge extends EventEmitter {
-  constructor() {
+  constructor({ onSensitiveValues = () => {} } = {}) {
     super();
     /** @type {Map<string, VibessInstance>} */
     this.instances = new Map();
+    this.onSensitiveValues = onSensitiveValues;
   }
 
   /**
@@ -52,7 +68,7 @@ class VibesBridge extends EventEmitter {
    * @returns {Promise<object>} The planned mission with tasks.
    */
   async createAgent(id, cwd, mission, llmPrefs) {
-    const instance = new VibesInstance(id, cwd, llmPrefs);
+    const instance = new VibesInstance(id, cwd, llmPrefs, values => this.onSensitiveValues(id, values));
     this.instances.set(id, instance);
 
     instance.on('status', (data) => this.emit('agent-status', { id, ...data }));
@@ -138,7 +154,7 @@ class VibesBridge extends EventEmitter {
 }
 
 class VibesInstance extends EventEmitter {
-  constructor(id, cwd, llmPrefs) {
+  constructor(id, cwd, llmPrefs, onSensitiveValues = () => {}) {
     super();
     this.id = id;
     this.cwd = cwd;
@@ -149,6 +165,7 @@ class VibesInstance extends EventEmitter {
     this.initialized = false;
     this.buffer = '';
     this.safeModeDir = null;
+    this.onSensitiveValues = onSensitiveValues;
   }
 
   /**
@@ -178,7 +195,10 @@ class VibesInstance extends EventEmitter {
     // 2. Load the Vibes repository's own .env file to get core environment variables (like model, keys, etc.)
     const vibesDotEnvPath = path.join(vibesRoot, '.env');
     const vibesEnv = parseEnvFile(vibesDotEnvPath);
-    Object.assign(envVars, vibesEnv);
+    this.onSensitiveValues(Object.entries(vibesEnv)
+      .filter(([key, value]) => ALLOWED_VIBES_ENV_KEYS.has(key) && /(?:KEY|TOKEN|SECRET|PASSWORD)$/i.test(key) && typeof value === 'string' && value)
+      .map(([, value]) => value));
+    Object.assign(envVars, mergeChildEnvironment(envVars, vibesEnv));
 
     // 3. Override with dynamic LLM preferences configured in the user's browser, if available
     if (this.llmPrefs && this.llmPrefs.provider !== 'disabled') {
@@ -396,4 +416,4 @@ class VibesInstance extends EventEmitter {
   }
 }
 
-module.exports = { VibesBridge };
+module.exports = { VibesBridge, mergeChildEnvironment };

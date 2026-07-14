@@ -12,7 +12,7 @@ const base = { executablePaths:[executable], recipes:{ unit:{ command:executable
 test('loads injected object or server-controlled path and selects only requested allowlisted recipe ids', async t => {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'verification-policy-')); t.after(()=>fs.rm(dir,{recursive:true,force:true}));
   const file=path.join(dir,'policy.json'); await fs.writeFile(file,JSON.stringify(base)); await fs.chmod(file,0o600);
-  for (const policy of [await loadVerificationPolicy({policy:base}),await loadVerificationPolicy({policyPath:file})]) {
+  for (const policy of [await loadVerificationPolicy({policy:base}),await loadVerificationPolicy({policyPath:file,trustedPolicyRoots:[dir]})]) {
     const selected=selectVerification(policy,{requestedChecks:['unit','agent-supplied']});
     assert.deepEqual(selected.recipeIds,['unit']);
     assert.equal(selected.recipes[0].command,executable);
@@ -37,6 +37,7 @@ test('policy path must be canonical trusted nonsymlink regular file outside harn
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'trusted-policy-root-')); t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const workspace=await fs.mkdtemp(path.join(os.tmpdir(),'run-workspace-')); t.after(()=>fs.rm(workspace,{recursive:true,force:true}));
   const file=path.join(root,'policy.json'); await fs.writeFile(file,JSON.stringify(base)); await fs.chmod(file,0o600);
+  await assert.rejects(()=>loadVerificationPolicy({policyPath:file}),/trusted policy root/i);
   await assert.doesNotReject(()=>loadVerificationPolicy({policyPath:file,trustedPolicyRoots:[root],harnessWorkspaces:[workspace]}));
   await fs.writeFile(path.join(workspace,'policy.json'),JSON.stringify(base)); await fs.chmod(path.join(workspace,'policy.json'),0o600);
   await assert.rejects(()=>loadVerificationPolicy({policyPath:path.join(workspace,'policy.json'),trustedPolicyRoots:[root],harnessWorkspaces:[workspace]}),/trusted|workspace|policy path/i);

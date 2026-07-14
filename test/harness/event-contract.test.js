@@ -11,7 +11,7 @@ const CANONICAL_TYPES = [
   'task.started', 'task.completed', 'task.failed', 'log.emitted',
   'artifact.declared', 'artifact.validated',
   'verification.started', 'verification.check_recorded', 'verification.passed', 'verification.failed',
-  'intervention.requested', 'intervention.resolved', 'checkpoint.recorded'
+  'intervention.requested', 'intervention.resolved', 'checkpoint.recorded', 'run.child_created'
 ];
 
 function event(overrides = {}) {

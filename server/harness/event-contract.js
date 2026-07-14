@@ -9,7 +9,7 @@ const SUPPORTED_EVENT_TYPES = new Set([
   'task.started', 'task.completed', 'task.failed', 'log.emitted',
   'artifact.declared', 'artifact.validated',
   'verification.started', 'verification.check_recorded', 'verification.passed', 'verification.failed',
-  'intervention.requested', 'intervention.resolved', 'checkpoint.recorded'
+  'intervention.requested', 'intervention.resolved', 'checkpoint.recorded', 'run.child_created'
 ]);
 const ENVELOPE_FIELDS = ['schemaVersion', 'eventId', 'runId', 'type', 'timestamp', 'actor', 'data'];
 const SECRET_FIELD = /(?:password|passwd|secret|token|authorization|api[_-]?key|private[_-]?key|credential|cookie)/i;

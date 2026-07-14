@@ -59,6 +59,42 @@ test('lists runs newest-first by createdAt with deterministic ID tie-break', asy
   assert.deepEqual((await value.listRuns()).map(x => x.id), ['a-run', 'z-run', 'old-run']);
 });
 
+test('run listing caps metadata opens and concurrency and reports a truncated scan', async t => {
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'harness-list-cap-')); t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  let active=0; let peak=0; let opens=0;
+  const fsOps={...fs,async open(...args){ if(String(args[0]).endsWith('run.json')){opens++;active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,5));active--;} return fs.open(...args); }};
+  const seed=new RunStore({root}); for(let i=0;i<12;i++) await seed.createRun(metadata(`run-${String(i).padStart(2,'0')}`,new Date(1700000000000+i).toISOString()));
+  const value=new RunStore({root,fsOps,maxRunScan:5,listConcurrency:3}); const runs=await value.listRuns();
+  assert.equal(opens,5); assert.ok(peak<=3); assert.equal(runs.length,5); assert.equal(runs.scanTruncated,true); assert.match(runs.warnings[0],/bounded/i);
+  assert.deepEqual(runs.map(run=>run.createdAt),[...runs].map(run=>run.createdAt).sort().reverse());
+});
+
+test('quarantine reconciliation bounds directory iteration with lookahead and closes it', async () => {
+  let reads=0; let closes=0; let active=0; let peak=0;
+  const entries=Array.from({length:1000},(_,i)=>({name:`.quarantine-run-${i}-${'a'.repeat(32)}`}));
+  const directory={async next(){reads++;return {value:entries.shift(),done:false};},[Symbol.asyncIterator](){return this;},async close(){closes++;}};
+  const fsOps={...fs,opendir:async()=>directory,lstat:async()=>({isSymbolicLink:()=>false,isDirectory:()=>true}),rm:async()=>{active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,2));active--;}};
+  const value=new RunStore({root:'/tmp/quarantine-iterator-success',fsOps,listConcurrency:16}); value.secureRoot=async()=>{};
+  const result=await value.reconcileQuarantine({maxEntries:5});
+  assert.equal(reads,6); assert.equal(closes,1); assert.equal(result.results.length,5); assert.equal(result.truncated,true); assert.ok(peak<=8);
+});
+
+test('quarantine reconciliation caps total scans even when entries do not match', async () => {
+  let reads=0; let closes=0;
+  const directory={async next(){reads++;return {value:{name:`ordinary-run-${reads}`},done:false};},[Symbol.asyncIterator](){return this;},async close(){closes++;}};
+  const value=new RunStore({root:'/tmp/quarantine-nonmatching-bound',fsOps:{...fs,opendir:async()=>directory}}); value.secureRoot=async()=>{};
+  const result=await value.reconcileQuarantine({maxEntries:5,dryRun:true});
+  assert.equal(reads,6); assert.equal(closes,1); assert.equal(result.results.length,0); assert.equal(result.truncated,true);
+});
+
+test('quarantine reconciliation closes the directory when iteration fails', async () => {
+  let closes=0; let reads=0;
+  const directory={async next(){if(++reads===2)throw new Error('iterator failed');return {value:{name:`.quarantine-run-1-${'b'.repeat(32)}`},done:false};},[Symbol.asyncIterator](){return this;},async close(){closes++;}};
+  const value=new RunStore({root:'/tmp/quarantine-iterator-error',fsOps:{...fs,opendir:async()=>directory}}); value.secureRoot=async()=>{};
+  await assert.rejects(()=>value.reconcileQuarantine({maxEntries:5}),/iterator failed/);
+  assert.equal(closes,1);
+});
+
 test('recovers complete events and warns on a truncated final JSONL record', async t => {
   const { root, value } = await store(t); await value.createRun(metadata('run-a'));
   await value.appendEvent('run-a', evt('run-a', 'evt-1'));

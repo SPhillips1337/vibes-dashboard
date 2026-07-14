@@ -1,32 +1,45 @@
 ---
-# Design Tokens
-name: Vibes Dashboard
-theme: Futuristic Glassmorphism
-tokens:
-  colors:
-    primary: "#3b82f6"
-    secondary: "#60a5fa"
-    background: "#0a0a0c"
-    surface: "rgba(20, 20, 25, 0.7)"
-    surface-hover: "rgba(255, 255, 255, 0.05)"
-    border: "rgba(255, 255, 255, 0.1)"
-    text-primary: "#f8fafc"
-    text-secondary: "#94a3b8"
-    success: "#10b981"
-    warning: "#f59e0b"
-    danger: "#ef4444"
-  glass:
-    blur: "12px"
-    border-width: "1px"
-  typography:
-    font-main: "'Inter', sans-serif"
-    font-accent: "'Outfit', sans-serif"
-  spacing:
-    base: "8px"
-    radius: "16px"
-  reactive:
-    glow-opacity: "Dynamic (0.1 - 0.5)"
-    energy: "Dynamic (0.0 - 1.0)"
+name: vibes-dashboard
+description: "Futuristic glassmorphism visual language for the Vibes Dashboard."
+
+colors:
+  primary: "#3b82f6"
+  secondary: "#60a5fa"
+  background: "#0a0a0c"
+  surface: "rgba(20, 20, 25, 0.7)"
+  surface-hover: "rgba(255, 255, 255, 0.05)"
+  border: "rgba(255, 255, 255, 0.1)"
+  text-primary: "#f8fafc"
+  text-secondary: "#94a3b8"
+  success: "#10b981"
+  warning: "#f59e0b"
+  danger: "#ef4444"
+
+typography:
+  font-main: "'Inter', sans-serif"
+  font-accent: "'Outfit', sans-serif"
+
+rounded:
+  base: "8px"
+  panel: "16px"
+
+spacing:
+  base: "8px"
+  panel-gap: "16px"
+
+glass:
+  blur: "12px"
+  border-width: "1px"
+
+reactive:
+  glow-opacity: "Dynamic (0.1 - 0.5)"
+  energy: "Dynamic (0.0 - 1.0)"
+
+references:
+  - label: Refero DESIGN.md examples for AI agents
+    url: "https://styles.refero.design/ai-agents/design-md-examples"
+  - label: Vibes Dashboard DESIGN.md repo
+    url: "https://github.com/Panniantong/vibes-dashboard"
 ---
 
 # 🌌 Vibes Dashboard: Design System

@@ -38,10 +38,11 @@ test('duplicate accept launches execution exactly once',async()=>{const h=harnes
 
 test('planning and execution missing or invalid responses persist canonical staged failure',async()=>{const h=harness({vibesBridge:{createAgent:async()=>({}),executePlannedMission:async()=>({}),terminate(){},instances:new Map()}});h.views.set('r',{id:'r',mission:'x',cwd:'/tmp',status:'planning',useVibes:true,attempt:1});await h.controller.plan('r');assert.deepEqual(h.calls.find(c=>c[0]==='failExecution').slice(2),[{stage:'planning',reason:'missing planning response'}]);h.views.set('e',{id:'e',status:'executing',useVibes:true,attempt:1});await h.controller.execute('e');assert.deepEqual(h.calls.filter(c=>c[0]==='failExecution').at(-1)[2],{stage:'execution',reason:'missing execution response',attempt:1});});
 
-test('planning accepts only strict plan object, recipe ids, and safe artifact paths',async()=>{
+test('planning accepts legacy task arrays and strict plan objects, rejecting malformed tasks',async()=>{
   const cases=[
-    ['legacy array','[{"id":"1","name":"legacy"}]'],
     ['missing tasks',JSON.stringify({verificationChecks:['unit']})],
+    ['primitive task',JSON.stringify({tasks:[1]})],
+    ['missing safe label',JSON.stringify({tasks:[{id:'x'}]})],
     ['malformed check id',JSON.stringify({tasks:[],verificationChecks:['unit;rm']})],
     ['unsafe artifact',JSON.stringify({tasks:[],declaredArtifacts:['../secret']})]
   ];
@@ -52,11 +53,35 @@ test('planning accepts only strict plan object, recipe ids, and safe artifact pa
     assert.equal(h.calls.some(c=>c[0]==='recordPlan'),false,label);
     assert.deepEqual(h.calls.find(c=>c[0]==='failExecution')[2],{stage:'planning',reason:'invalid planning response'});
   }
+  const legacy=harness({vibesBridge:{createAgent:async()=>({content:'[{"id":"1","name":"legacy"}]'}),executePlannedMission:async()=>({}),terminate(){},instances:new Map()}});
+  legacy.views.set('legacy',{id:'legacy',mission:'x',cwd:'/tmp',status:'planning',useVibes:true,attempt:1});
+  await legacy.controller.plan('legacy');
+  assert.deepEqual(legacy.calls.find(c=>c[0]==='recordPlan')[2],{tasks:[{id:'1',name:'legacy'}]});
   const valid=JSON.stringify({tasks:[{id:'t1',title:'Build'}],verificationChecks:['unit.test-1'],declaredArtifacts:['reports/out.json']});
   const h=harness({vibesBridge:{createAgent:async()=>({content:valid}),executePlannedMission:async()=>({}),terminate(){},instances:new Map()}});
   h.views.set('ok',{id:'ok',mission:'x',cwd:'/tmp',status:'planning',useVibes:true,attempt:1});
   await h.controller.plan('ok');
   assert.deepEqual(h.calls.find(c=>c[0]==='recordPlan').slice(2),[{tasks:[{id:'t1',title:'Build'}],verificationChecks:['unit.test-1'],declaredArtifacts:['reports/out.json']}]);
+});
+
+test('untrusted plans reject fixture flags and malformed or oversized task fields before persistence',async()=>{
+  const invalid=[
+    {tasks:[],demo_fixture_only:true},
+    {tasks:[{id:'x',name:'X',status:'invented'}]},
+    {tasks:[{id:'x',name:'X',parentId:7}]},
+    {tasks:[{id:'x',name:'X',dependencies:[{id:'nested'}]}]},
+    {tasks:[{id:'x',name:'X',extra:true}]},
+    {tasks:Array.from({length:257},(_,i)=>({id:String(i),name:'X'}))},
+    {tasks:[{id:'x'.repeat(129),name:'X'}]},
+    {tasks:[{id:'x',name:'X'.repeat(1025)}]}
+  ];
+  for(const [index,plan] of invalid.entries()){
+    const id=`invalid-${index}`;
+    const h=harness({vibesBridge:{createAgent:async()=>({content:JSON.stringify(plan)}),executePlannedMission:async()=>({}),terminate(){},instances:new Map()}});
+    h.views.set(id,{id,mission:'x',cwd:'/tmp',status:'planning',useVibes:true,attempt:1});
+    await h.controller.plan(id);
+    assert.equal(h.calls.some(call=>call[0]==='recordPlan'),false,JSON.stringify(plan).slice(0,100));
+  }
 });
 
 test('MCP result is completion authority and zero exit is diagnostic only',async()=>{let release;const gate=new Promise(resolve=>{release=resolve;});const h=harness({verify:async()=>{await gate;return {passed:true};}});h.views.set('r',{id:'r',status:'executing',attempt:1,useVibes:true});const execution=h.controller.execute('r');while(!h.calls.some(c=>c[0]==='startVerification'))await new Promise(resolve=>setImmediate(resolve));await h.controller.onExit({id:'r',code:0});release();await execution;assert.equal(h.calls.filter(c=>c[0]==='claimExecutionComplete').length,1);assert.ok(h.calls.some(c=>c[0]==='recordLog'&&/exit 0/.test(c[2].message)));});
@@ -75,6 +100,29 @@ test('verification evidence ids include canonical check and artifact validation 
   await h.controller.execute('r');
   const failure=h.calls.find(c=>c[0]==='finishVerification')[2].failureRecord;
   assert.deepEqual(failure.evidenceEventIds,['evt-check','evt-artifact']);
+});
+
+test('unencodable verifier evidence finishes as grounded evidence_too_large failure',async()=>{
+  const h=harness({verify:async()=>({passed:true,checks:[{id:'huge',passed:true}],artifacts:[]})});
+  h.service.recordVerificationCheck=async()=>{throw new RangeError('event exceeds size limit');};
+  h.views.set('r',{id:'r',status:'executing',attempt:1,useVibes:true});
+  const run=await h.controller.execute('r');
+  assert.equal(run.status,'failed');
+  const result=h.calls.find(c=>c[0]==='finishVerification')[2];
+  assert.equal(result.cause,'evidence_too_large');
+  assert.equal(result.failureRecord.terminalCause,'evidence_too_large');
+});
+
+test('evidence fallback preserves committed ids and records canonical encoding failure evidence',async()=>{
+  const h=harness({verify:async()=>({passed:true,checks:[{id:'first',passed:true},{id:'second',passed:true}],artifacts:[]})});
+  let calls=0;
+  h.service.recordVerificationCheck=async(id,data)=>{h.calls.push(['recordVerificationCheck',id,data]);calls+=1;if(calls===1)return {eventId:'evt-first'};if(calls===2)throw new RangeError('event exceeds size limit');return {eventId:'evt-fallback'};};
+  h.views.set('r',{id:'r',status:'executing',attempt:1,useVibes:true});
+  await h.controller.execute('r');
+  const checks=h.calls.filter(call=>call[0]==='recordVerificationCheck');
+  assert.deepEqual(checks.at(-1)[2],{checkId:'evidence-encoding',passed:false,reason:'evidence_too_large',attempt:1});
+  const failure=h.calls.find(call=>call[0]==='finishVerification')[2].failureRecord;
+  assert.deepEqual(failure.evidenceEventIds,['evt-first','evt-fallback']);
 });
 
 test('demo path is explicitly marked fixture-only and does not use runtime version checks',async()=>{
@@ -109,5 +157,20 @@ test('scheduled callbacks remove fired timers and route sync and async errors',a
 test('terminal paths discard ephemeral launch preferences',async()=>{const h=harness();for(const status of ['terminated','failed','completed']){h.prefs.set(status,{apiKey:'secret'});h.views.set(status,{id:status,status:status==='terminated'?'awaiting_approval':'executing',attempt:1,useVibes:true});if(status==='terminated')await h.controller.terminate(status);else if(status==='failed')await h.controller.onExit({id:status,code:2});else await h.controller.execute(status);assert.equal(h.prefs.has(status),false);}});
 
 test('terminate cancels demo timers and stale callbacks cannot mutate a new attempt',async()=>{const h=harness();h.views.set('r',{id:'r',mission:'x',status:'awaiting_approval',useVibes:false,attempt:1,tasks:[{id:'1',name:'x',status:'pending'}]});await h.controller.accept('r');assert.ok(h.timers.length);const stale=h.timers[0];await h.controller.terminate('r');assert.equal(h.timers.length,0);await stale();assert.equal(h.calls.filter(c=>c[0]==='recordTaskStatus').length,0);});
+
+test('real RunService/controller persists canonical check evidence and reaches terminal verification',async t=>{
+  const fs=require('node:fs/promises'); const os=require('node:os'); const path=require('node:path');
+  const {RunStore}=require('../../server/harness/run-store'); const {RunService}=require('../../server/harness/run-service');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'controller-integration-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  let n=0; const service=new RunService({store:new RunStore({root}),idGenerator:p=>`${p}-${++n}`});
+  const run=await service.createRun({mission:'verify',cwd:root,useVibes:true}); await service.recordPlan(run.id,{tasks:[]}); await service.approvePlan(run.id); await service.startExecution(run.id);
+  const controller=new AgentController({runService:service,vibesBridge:{executePlannedMission:async()=>({content:'done'})},verify:async()=>({passed:true,checks:[{id:'unit',passed:true,stdout:'ok'}],artifacts:[]})});
+  controller._launches.set(run.id,'1:execution');
+  const terminal=await controller.execute(run.id,'1:execution');
+  assert.equal(terminal.status,'completed');
+  const events=(await service.store.readEvents(run.id)).events;
+  assert.ok(events.some(event=>event.type==='verification.check_recorded'));
+  assert.equal(events.at(-1).type,'verification.passed');
+});
 
 test('safe socket boundary catches rejection and emits stable operation error',async()=>{const emitted=[];const socket={emit:(...a)=>emitted.push(a)};let logged='';await safeSocketHandler(socket,'agent-accept',async()=>{throw new Error('boom');},{error:(...a)=>{logged=a.join(' ');}})({id:'r'});assert.match(logged,/boom/);assert.deepEqual(emitted,[['agent-operation-error',{operation:'agent-accept',id:'r',error:'Operation failed'}]]);});

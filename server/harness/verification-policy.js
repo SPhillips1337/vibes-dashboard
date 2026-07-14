@@ -3,9 +3,9 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 
 const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024;
+const DEFAULT_MAX_OUTPUT_BYTES = 16 * 1024;
 const MIN_OUTPUT_BYTES = 256;
-const MAX_OUTPUT_BYTES = 1024 * 1024;
+const MAX_OUTPUT_BYTES = 16 * 1024;
 const MAX_TIMEOUT_MS = 10 * 60 * 1000;
 const SHELL_SURFACE = /[;&|`$<>\n\r\0]/;
 const WRITE_BITS = 0o022;
@@ -25,7 +25,7 @@ async function executableIdentity(command, fsOps) {
   const realStat=await fsOps.lstat(real);
   if (realStat.isSymbolicLink() || !realStat.isFile()) throw new TypeError('executable must be a nonsymlink regular file');
   if ((realStat.mode & WRITE_BITS) !== 0) throw new TypeError('executable path is group/world writable');
-  return { path: real, dev: realStat.dev, ino: realStat.ino, mtimeMs: realStat.mtimeMs, size: realStat.size };
+  return { path: real, dev: realStat.dev, ino: realStat.ino, mtimeMs: realStat.mtimeMs, ctimeMs: realStat.ctimeMs, size: realStat.size };
 }
 
 function containsPath(parent, child) {
@@ -35,13 +35,14 @@ function containsPath(parent, child) {
 
 async function assertPolicyPath(policyPath, { fsOps, trustedPolicyRoots = [], harnessWorkspaces = [] }) {
   if (typeof policyPath!=='string' || !path.isAbsolute(policyPath)) throw new TypeError('policy path is invalid');
+  if (!Array.isArray(trustedPolicyRoots) || trustedPolicyRoots.length===0) throw new TypeError('trusted policy root is required');
   const stat=await fsOps.lstat(policyPath);
   if (stat.isSymbolicLink() || !stat.isFile()) throw new TypeError('policy path must be a nonsymlink regular file');
   if ((stat.mode & WRITE_BITS) !== 0) throw new TypeError('policy path is group/world writable');
   const real=await fsOps.realpath(policyPath);
   const canonicalRoots=[];
   for (const root of trustedPolicyRoots) if (typeof root === 'string' && path.isAbsolute(root)) canonicalRoots.push(await fsOps.realpath(root));
-  if (canonicalRoots.length && !canonicalRoots.some(root => containsPath(root, real))) throw new TypeError('policy path is outside trusted roots');
+  if (!canonicalRoots.length || !canonicalRoots.some(root => containsPath(root, real))) throw new TypeError('policy path is outside trusted roots');
   for (const workspace of harnessWorkspaces) {
     if (typeof workspace === 'string' && path.isAbsolute(workspace) && containsPath(await fsOps.realpath(workspace), real)) throw new TypeError('policy path is inside a harness workspace');
   }

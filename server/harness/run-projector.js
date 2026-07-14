@@ -15,6 +15,7 @@ function projectRun(run, events) {
     interventions: [],
     artifacts: [],
     checkpoints: [],
+    childRunIds: [],
     verification: { status: 'pending', checks: [] },
     attempt: 1
   };
@@ -146,6 +147,9 @@ function projectRun(run, events) {
       }
       case 'checkpoint.recorded':
         view.checkpoints.push({ ...(data.checkpoint ?? data) });
+        break;
+      case 'run.child_created':
+        if (data.childRunId && !view.childRunIds.includes(data.childRunId)) view.childRunIds.push(data.childRunId);
         break;
       default:
         break;
