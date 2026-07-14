@@ -17,6 +17,7 @@ const QRCode = require('qrcode');
 const { createMfaChallengeService } = require('./mfa-challenges');
 const { parseEncryptionKey } = require('./mfa');
 const { createAccessControl } = require('./access-control');
+const { isSessionValid } = require('./session-policy');
 
 const app = express();
 const accessControl = createAccessControl({
@@ -98,7 +99,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Secure static modules directory
 app.use('/modules', (req, res, next) => {
   const sessionId = req.cookies['__Host-session-id'];
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     return next();
   }
   res.status(401).json({ error: 'Unauthorized' });
@@ -241,7 +242,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/status', (req, res) => {
   const sessionId = req.cookies['__Host-session-id'];
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     const session = auth.sessions[sessionId];
     return res.json({
       authenticated: true,
@@ -262,7 +263,7 @@ app.use('/api', (req, res, next) => {
   }
 
   const sessionId = req.cookies['__Host-session-id'];
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     req.session = auth.sessions[sessionId];
 
     // CSRF Check for all state-changing HTTP requests
@@ -1229,14 +1230,13 @@ app.get('/api/proxy', async (req, res) => {
   // Authenticate session securely using cookies or query-based csrf token (to support sandboxed iframe subresources)
   let session = null;
   const sessionId = req.cookies['__Host-session-id'];
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     session = auth.sessions[sessionId];
   } else {
     const queryCsrf = req.query.csrf;
     if (queryCsrf) {
-      const now = Date.now();
       for (const s of Object.values(auth.sessions)) {
-        if (s.csrfToken === queryCsrf && new Date(s.expiresAt).getTime() > now) {
+        if (s.csrfToken === queryCsrf && isSessionValid(s, { mfaRequired: MFA_REQUIRED })) {
           session = s;
           break;
         }
@@ -1405,7 +1405,7 @@ io.use((socket, next) => {
     sessionId = cookies['__Host-session-id'];
   }
   
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     socket.session = auth.sessions[sessionId];
     next();
   } else {
