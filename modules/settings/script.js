@@ -561,6 +561,29 @@
             </form>
           </div>
 
+          <div class="user-form-card hidden" id="mfa-setup-card">
+            <div class="user-form-header">
+              <h4>Set up two-factor authentication</h4>
+              <button class="btn-icon delete" id="btn-close-mfa-setup" style="border:none;" aria-label="Close two-factor setup">&times;</button>
+            </div>
+            <p style="font-size:12px; color:var(--text-secondary);">Scan with Google Authenticator, 1Password, Authy, or another TOTP app, then enter the six-digit code.</p>
+            <div style="text-align:center; margin:12px 0;">
+              <img id="mfa-admin-qr-code" alt="Two-factor authenticator QR code" style="width:220px; max-width:100%; border-radius:16px;">
+              <p style="font-size:12px; color:var(--text-secondary);">Manual key: <code id="mfa-admin-secret" style="color:var(--text-primary);"></code></p>
+            </div>
+            <form id="mfa-enable-form">
+              <div class="settings-field">
+                <label for="mfa-admin-code">Authenticator code</label>
+                <input type="text" id="mfa-admin-code" inputmode="numeric" autocomplete="one-time-code" required placeholder="6-digit code">
+              </div>
+              <div class="user-form-buttons" style="margin-top:12px;">
+                <button type="submit" class="btn btn-primary" style="padding:8px 18px; font-size:13px;">Enable two-factor authentication</button>
+              </div>
+            </form>
+            <div id="mfa-admin-result" style="font-size:12px; color:var(--text-secondary); margin-top:12px;"></div>
+            <ul id="mfa-admin-recovery-codes" style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 12px; list-style:none; margin-top:10px;"></ul>
+          </div>
+
           <div class="user-table-container">
             <table class="user-table">
               <thead>
@@ -568,6 +591,7 @@
                   <th>Display Name</th>
                   <th>Username</th>
                   <th>Privilege Level</th>
+                  <th>Two-Factor</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -589,6 +613,31 @@
         const inputPass = panel.querySelector('#user-form-password');
         const selectRole = panel.querySelector('#user-form-role');
         const passHint = panel.querySelector('#password-hint');
+        const mfaSetupCard = panel.querySelector('#mfa-setup-card');
+        const mfaEnableForm = panel.querySelector('#mfa-enable-form');
+        const mfaQrCode = panel.querySelector('#mfa-admin-qr-code');
+        const mfaSecret = panel.querySelector('#mfa-admin-secret');
+        const mfaCode = panel.querySelector('#mfa-admin-code');
+        const mfaResult = panel.querySelector('#mfa-admin-result');
+        const mfaRecoveryCodes = panel.querySelector('#mfa-admin-recovery-codes');
+        let mfaChallengeId = null;
+
+        const startMfaSetup = async () => {
+          mfaResult.textContent = '';
+          mfaRecoveryCodes.replaceChildren();
+          mfaCode.value = '';
+          const response = await fetch('/api/auth/mfa/setup', {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': window.Dashboard.csrfToken }
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Unable to start two-factor setup');
+          mfaChallengeId = data.challengeId;
+          mfaQrCode.src = data.qrCodeDataUrl;
+          mfaSecret.textContent = data.secret;
+          mfaSetupCard.classList.remove('hidden');
+          mfaCode.focus();
+        };
 
         // Fetch and draw users
         const fetchAndDrawUsers = async () => {
@@ -616,6 +665,13 @@
               badge.textContent = u.role;
               tdRole.appendChild(badge);
               tr.appendChild(tdRole);
+
+              const tdMfa = document.createElement('td');
+              const mfaBadge = document.createElement('span');
+              mfaBadge.className = `user-role-badge ${u.mfaEnabled ? 'admin' : 'operator'}`;
+              mfaBadge.textContent = u.mfaEnabled ? 'Enabled' : 'Enrollment required';
+              tdMfa.appendChild(mfaBadge);
+              tr.appendChild(tdMfa);
 
               const tdActions = document.createElement('td');
               const actionDiv = document.createElement('div');
@@ -657,6 +713,47 @@
                 formCard.classList.remove('hidden');
               });
               actionDiv.appendChild(editBtn);
+
+              if (!u.mfaEnabled && u.username === window.Dashboard.currentUser.username) {
+                const setupMfaBtn = document.createElement('button');
+                setupMfaBtn.className = 'btn btn-primary';
+                setupMfaBtn.title = 'Set up two-factor authentication';
+                setupMfaBtn.textContent = 'Set up 2FA';
+                setupMfaBtn.addEventListener('click', () => {
+                  startMfaSetup().catch(error => {
+                    console.error('[User-Access] 2FA setup failed:', error);
+                    alert(error.message);
+                  });
+                });
+                actionDiv.appendChild(setupMfaBtn);
+              }
+
+              if (u.mfaEnabled) {
+                const resetMfaBtn = document.createElement('button');
+                resetMfaBtn.className = 'btn-icon delete';
+                resetMfaBtn.title = 'Reset two-factor authentication';
+                resetMfaBtn.textContent = '2FA';
+                resetMfaBtn.addEventListener('click', async () => {
+                  if (!confirm(`Reset two-factor authentication for "${u.name}"? All of their sessions will be revoked.`)) return;
+                  try {
+                    const resetResp = await fetch(`/api/users/${u.id}/mfa`, {
+                      method: 'DELETE',
+                      headers: { 'X-CSRF-Token': window.Dashboard.csrfToken }
+                    });
+                    if (!resetResp.ok) {
+                      const errData = await resetResp.json();
+                      alert(`2FA reset failed: ${errData.error}`);
+                    } else if (u.username === window.Dashboard.currentUser.username) {
+                      window.location.reload();
+                    } else {
+                      fetchAndDrawUsers();
+                    }
+                  } catch (error) {
+                    console.error('[User-Access] 2FA reset failed:', error);
+                  }
+                });
+                actionDiv.appendChild(resetMfaBtn);
+              }
 
               // Delete Action
               if (u.username !== window.Dashboard.currentUser.username) {
@@ -761,6 +858,43 @@
             }
           } catch (err) {
             console.error('[User-Access] Save user failed:', err);
+          }
+        });
+
+        panel.querySelector('#btn-close-mfa-setup').addEventListener('click', () => {
+          mfaSetupCard.classList.add('hidden');
+          mfaChallengeId = null;
+          mfaCode.value = '';
+        });
+
+        mfaEnableForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          mfaResult.textContent = '';
+          try {
+            const response = await fetch('/api/auth/mfa/enable', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': window.Dashboard.csrfToken
+              },
+              body: JSON.stringify({ challengeId: mfaChallengeId, code: mfaCode.value.trim() })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Unable to enable two-factor authentication');
+
+            mfaResult.textContent = 'Two-factor authentication enabled. Save these one-time recovery codes now; they will not be shown again.';
+            mfaRecoveryCodes.replaceChildren();
+            data.recoveryCodes.forEach(code => {
+              const item = document.createElement('li');
+              item.textContent = code;
+              mfaRecoveryCodes.appendChild(item);
+            });
+            mfaEnableForm.classList.add('hidden');
+            fetchAndDrawUsers();
+          } catch (error) {
+            mfaResult.textContent = error.message;
+            mfaCode.value = '';
+            mfaCode.focus();
           }
         });
 

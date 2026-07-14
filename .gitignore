@@ -28,6 +28,7 @@ build/
 # Logs and Debugging
 logs/
 *.log
+server.pid
 npm-debug.log*
 debug.log
 

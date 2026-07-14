@@ -13,8 +13,19 @@ const { loadVerificationPolicy, selectVerification } = require('./harness/verifi
 const { createVerifier } = require('./harness/verifier');
 const { createHarnessHandlers } = require('./harness-api');
 const { spawn, spawnSync } = require('child_process');
+const QRCode = require('qrcode');
+const { createMfaChallengeService } = require('./mfa-challenges');
+const { parseEncryptionKey } = require('./mfa');
+const { createAccessControl } = require('./access-control');
+const { isSessionValid } = require('./session-policy');
 
 const app = express();
+const accessControl = createAccessControl({
+  allowedIps: process.env.ACCESS_ALLOWED_IPS,
+  trustedProxies: process.env.TRUSTED_PROXY_IPS
+});
+app.set('trust proxy', accessControl.trustProxy);
+app.use(accessControl.middleware);
 const certDir = path.join(__dirname, '..', 'certs');
 const certPath = path.join(certDir, 'cert.pem');
 const keyPath = path.join(certDir, 'key.pem');
@@ -35,6 +46,7 @@ if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
 }
 
 const io = new Server(server);
+io.engine.use(accessControl.nodeMiddleware);
 
 const PORT = process.env.PORT || 9000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -48,6 +60,13 @@ const USE_VIBES = process.env.USE_VIBES === 'true' || (hasVibes && process.env.U
 
 const auth = require('./auth');
 const coordinationAdapter = createAdapterFromEnv();
+const MFA_REQUIRED = process.env.MFA_REQUIRED === 'true';
+const mfaService = createMfaChallengeService({
+  required: MFA_REQUIRED,
+  encryptionKey: MFA_REQUIRED ? parseEncryptionKey(process.env.MFA_ENCRYPTION_KEY) : undefined,
+  issuer: process.env.MFA_ISSUER || 'Vibes Dashboard',
+  saveUser: () => auth.saveUsers()
+});
 
 // Custom Cookie Parser Middleware
 app.use((req, res, next) => {
@@ -80,7 +99,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Secure static modules directory
 app.use('/modules', (req, res, next) => {
   const sessionId = req.cookies['__Host-session-id'];
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     return next();
   }
   res.status(401).json({ error: 'Unauthorized' });
@@ -163,7 +182,7 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(429).json({ error: 'Too many failed login attempts. Try again in 10 minutes.' });
   }
 
-  const { username, password } = req.body;
+  const { username, password, mfaChallengeId, mfaCode } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
@@ -180,9 +199,27 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid username or password' });
   }
 
+  let recoveryCodes;
+  if (MFA_REQUIRED) {
+    if (!mfaChallengeId || !mfaCode) {
+      const challenge = mfaService.begin(user);
+      const qrCodeDataUrl = challenge.enrollmentRequired
+        ? await QRCode.toDataURL(challenge.otpauthUri, { errorCorrectionLevel: 'M', margin: 1, width: 220 })
+        : undefined;
+      return res.status(202).json({ ...challenge, qrCodeDataUrl });
+    }
+
+    const mfaResult = mfaService.verify(user, mfaChallengeId, mfaCode);
+    if (!mfaResult.ok) {
+      auth.recordLoginAttempt(ip, false);
+      return res.status(401).json({ error: 'Invalid or expired authentication code' });
+    }
+    recoveryCodes = mfaResult.recoveryCodes;
+  }
+
   auth.recordLoginAttempt(ip, true);
 
-  const { sessionId, csrfToken } = auth.createSession(user.id, user.username, user.role);
+  const { sessionId, csrfToken } = auth.createSession(user.id, user.username, user.role, MFA_REQUIRED);
 
   res.cookie('__Host-session-id', sessionId, {
     httpOnly: true,
@@ -198,13 +235,14 @@ app.post('/api/auth/login', async (req, res) => {
       username: user.username,
       name: user.name,
       role: user.role
-    }
+    },
+    ...(recoveryCodes ? { recoveryCodes } : {})
   });
 });
 
 app.get('/api/auth/status', (req, res) => {
   const sessionId = req.cookies['__Host-session-id'];
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     const session = auth.sessions[sessionId];
     return res.json({
       authenticated: true,
@@ -225,7 +263,7 @@ app.use('/api', (req, res, next) => {
   }
 
   const sessionId = req.cookies['__Host-session-id'];
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     req.session = auth.sessions[sessionId];
 
     // CSRF Check for all state-changing HTTP requests
@@ -258,6 +296,33 @@ app.get('/api/auth/csrf', (req, res) => {
   res.json({ csrfToken: req.session.csrfToken });
 });
 
+app.post('/api/auth/mfa/setup', async (req, res) => {
+  if (!MFA_REQUIRED) return res.status(409).json({ error: 'Two-factor authentication is not enabled on this server' });
+  const user = auth.users.find(candidate => candidate.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.mfa?.secretEncrypted) return res.status(409).json({ error: 'Two-factor authentication is already enabled' });
+
+  const challenge = mfaService.begin(user);
+  const qrCodeDataUrl = await QRCode.toDataURL(challenge.otpauthUri, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 220
+  });
+  res.json({ ...challenge, qrCodeDataUrl });
+});
+
+app.post('/api/auth/mfa/enable', (req, res) => {
+  if (!MFA_REQUIRED) return res.status(409).json({ error: 'Two-factor authentication is not enabled on this server' });
+  const user = auth.users.find(candidate => candidate.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const result = mfaService.verify(user, req.body.challengeId, req.body.code);
+  if (!result.ok || !result.enrolled) return res.status(400).json({ error: 'Invalid or expired authentication code' });
+
+  req.session.mfaVerified = true;
+  auth.saveSessions();
+  res.json({ success: true, recoveryCodes: result.recoveryCodes });
+});
+
 // ROLE-BASED ACCESS CONTROL (RBAC) MIDDLEWARE
 const requireAdmin = (req, res, next) => {
   if (req.session && req.session.role === 'admin') {
@@ -273,7 +338,8 @@ app.get('/api/users', requireAdmin, (req, res) => {
     username: u.username,
     name: u.name,
     role: u.role,
-    createdAt: u.createdAt
+    createdAt: u.createdAt,
+    mfaEnabled: Boolean(u.mfa?.secretEncrypted)
   }));
   res.json(safeUsers);
 });
@@ -313,7 +379,8 @@ app.post('/api/users', requireAdmin, async (req, res) => {
       username: newUser.username,
       name: newUser.name,
       role: newUser.role,
-      createdAt: newUser.createdAt
+      createdAt: newUser.createdAt,
+      mfaEnabled: false
     }
   });
 });
@@ -349,9 +416,21 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
       username: user.username,
       name: user.name,
       role: user.role,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
+      mfaEnabled: Boolean(user.mfa?.secretEncrypted)
     }
   });
+});
+
+app.delete('/api/users/:id/mfa', requireAdmin, (req, res) => {
+  const user = auth.users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  mfaService.reset(user);
+  for (const [sid, session] of Object.entries(auth.sessions)) {
+    if (session.userId === user.id) auth.destroySession(sid);
+  }
+  res.json({ success: true, mfaEnabled: false });
 });
 
 app.delete('/api/users/:id', requireAdmin, (req, res) => {
@@ -1151,14 +1230,13 @@ app.get('/api/proxy', async (req, res) => {
   // Authenticate session securely using cookies or query-based csrf token (to support sandboxed iframe subresources)
   let session = null;
   const sessionId = req.cookies['__Host-session-id'];
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     session = auth.sessions[sessionId];
   } else {
     const queryCsrf = req.query.csrf;
     if (queryCsrf) {
-      const now = Date.now();
       for (const s of Object.values(auth.sessions)) {
-        if (s.csrfToken === queryCsrf && new Date(s.expiresAt).getTime() > now) {
+        if (s.csrfToken === queryCsrf && isSessionValid(s, { mfaRequired: MFA_REQUIRED })) {
           session = s;
           break;
         }
@@ -1327,7 +1405,7 @@ io.use((socket, next) => {
     sessionId = cookies['__Host-session-id'];
   }
   
-  if (sessionId && auth.sessions[sessionId] && new Date(auth.sessions[sessionId].expiresAt).getTime() > Date.now()) {
+  if (sessionId && isSessionValid(auth.sessions[sessionId], { mfaRequired: MFA_REQUIRED })) {
     socket.session = auth.sessions[sessionId];
     next();
   } else {
@@ -1457,7 +1535,7 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-const startupPromise = Promise.all([restorePromise, verificationPolicy]);
+const startupPromise = Promise.all([auth.initializationPromise, restorePromise, verificationPolicy]);
 
 startupPromise.then(() => server.listen(PORT, HOST, () => {
   const usingHttps = fs.existsSync(certPath) && fs.existsSync(keyPath);

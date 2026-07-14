@@ -7,11 +7,21 @@ All API requests are prefixed with `/api`. Rate limiting is implemented for auth
 ## 🔐 Authentication & Session Endpoints
 
 ### `POST /api/auth/login`
-Authenticates user credentials and establishes a secure HTTPS session cookie.
+Authenticates credentials. With `MFA_REQUIRED=true`, password-only success returns a five-minute MFA challenge and does **not** establish a session.
 * **Payload**:
   ```json
   { "username": "operator", "password": "securepassword" }
   ```
+* **MFA challenge response**: `202 Accepted`
+  ```json
+  { "mfaRequired": true, "challengeId": "...", "enrollmentRequired": false }
+  ```
+  First-login enrollment also includes `secret`, `otpauthUri`, and a same-origin `qrCodeDataUrl`.
+* **MFA verification payload**:
+  ```json
+  { "username": "operator", "password": "securepassword", "mfaChallengeId": "...", "mfaCode": "123456" }
+  ```
+  `mfaCode` may also be an unused recovery code. Successful first enrollment returns eight `recoveryCodes` once; the client must prompt the user to save them.
 * **Response**: `200 OK`
   ```json
   { "success": true, "user": { "username": "operator", "role": "operator" } }
@@ -37,6 +47,16 @@ Retrieves a valid CSRF token mapped to the session for header verification on st
   ```json
   { "csrfToken": "12afbc...3e" }
   ```
+
+### User administration (administrator only)
+
+All mutating requests require the session CSRF header.
+
+* `GET /api/users` — safe user records including `mfaEnabled`; never returns password hashes, TOTP secrets, or recovery-code hashes.
+* `POST /api/users` — creates an operator/admin. With MFA required, the user enrolls at first login.
+* `PUT /api/users/:id` — updates name, role, and optionally password.
+* `DELETE /api/users/:id/mfa` — clears MFA enrollment and revokes every session for that user.
+* `DELETE /api/users/:id` — deletes a non-current user while preserving the final administrator invariant.
 
 ---
 
