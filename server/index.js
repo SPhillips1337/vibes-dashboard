@@ -18,6 +18,7 @@ const { createMfaChallengeService } = require('./mfa-challenges');
 const { parseEncryptionKey } = require('./mfa');
 const { createAccessControl } = require('./access-control');
 const { isSessionValid } = require('./session-policy');
+const { createRemoveTrackHandler } = require('./music-library');
 
 const app = express();
 const accessControl = createAccessControl({
@@ -597,6 +598,11 @@ app.post('/api/music/download', async (req, res) => {
     res.status(500).json({ error: 'Failed to save track to library' });
   }
 });
+
+app.delete(
+  '/api/music/library/:id',
+  createRemoveTrackHandler(path.join(__dirname, '..', 'data', 'music', 'saved_playlist.json'))
+);
 
 app.get('/api/music/download-all', (req, res) => {
   const audioDir = path.join(__dirname, '..', 'public', 'audio');

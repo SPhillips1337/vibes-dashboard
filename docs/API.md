@@ -180,6 +180,17 @@ Saves Jamendo track streaming metadata (artist, URL, name) into the virtual save
   }
   ```
 
+### `DELETE /api/music/library/:id`
+Removes a saved Jamendo track from the virtual library. Local MP3 files are not deleted. Requires an authenticated session and `X-CSRF-Token` header.
+* **Response**: `200 OK`
+  ```json
+  { "success": true, "removed": { "id": "2284885", "name": "Track name" } }
+  ```
+* **Not found**: `404 Not Found`
+  ```json
+  { "error": "Track not found in saved library" }
+  ```
+
 ### `GET /api/music/download-all`
 Compiles all local tracks in `public/audio/` and initiates a zip archive file download.
 * **Response**: `200 OK (application/zip binary)`

@@ -212,3 +212,26 @@
 .ctrl-btn.active {
   color: var(--glow-color);
 }
+
+.remove-track-btn {
+  width: auto;
+  height: 30px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 1;
+  transition: all 0.2s ease;
+}
+
+.remove-track-btn:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.25);
+}

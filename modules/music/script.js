@@ -372,10 +372,65 @@
       infoDiv.appendChild(artistDiv);
 
       item.appendChild(infoDiv);
+
+      if (track.id) {
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'remove-track-btn';
+        removeButton.textContent = 'Remove';
+        removeButton.title = 'Remove saved track';
+        removeButton.setAttribute('aria-label', `Remove ${track.name} from library`);
+        removeButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          removeTrack(track, i);
+        });
+        item.appendChild(removeButton);
+      }
       
       item.addEventListener('click', () => loadTrack(i, true));
       playlistEl.appendChild(item);
     });
+  }
+
+  async function removeTrack(track, index) {
+    if (!window.confirm(`Remove "${track.name}" from your library?`)) return;
+
+    try {
+      const response = await fetch(`/api/music/library/${encodeURIComponent(track.id)}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': window.Dashboard.csrfToken }
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Failed to remove track');
+      }
+
+      const removedCurrentTrack = index === state.currentIndex;
+      const resumePlayback = removedCurrentTrack && state.isPlaying;
+      PLAYLIST.splice(index, 1);
+
+      if (PLAYLIST.length === 0) {
+        pauseTrack();
+        state.currentIndex = 0;
+        audio.removeAttribute('src');
+        audio.load();
+        if (trackName) trackName.textContent = 'No Audio Found';
+        if (trackArtist) trackArtist.textContent = 'Add tracks from Music Discovery';
+        renderPlaylist();
+        return;
+      }
+
+      if (removedCurrentTrack) {
+        const nextIndex = Math.min(index, PLAYLIST.length - 1);
+        loadTrack(nextIndex, resumePlayback);
+      } else {
+        if (index < state.currentIndex) state.currentIndex -= 1;
+        renderPlaylist();
+      }
+    } catch (error) {
+      console.error('[Music] Failed to remove track:', error);
+      window.alert(error.message);
+    }
   }
 
   function loadTrack(index, autoPlay = false) {
@@ -476,6 +531,7 @@
   }
 
   function nextTrack() {
+    if (!PLAYLIST.length) return;
     let index;
     if (state.isShuffle) {
       index = Math.floor(Math.random() * PLAYLIST.length);
@@ -490,6 +546,7 @@
   }
 
   function prevTrack() {
+    if (!PLAYLIST.length) return;
     let index;
     if (state.isShuffle) {
       index = Math.floor(Math.random() * PLAYLIST.length);
@@ -509,6 +566,7 @@
   }
 
   async function playTrack() {
+    if (!PLAYLIST.length) return;
     if (!state.audioContext) {
       setupAudioContext();
     } else if (state.audioContext.state === 'suspended') {
