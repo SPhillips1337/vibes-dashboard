@@ -52,6 +52,12 @@
 
 ## Workflow Protocols
 
+### Canonical source precedence
+
+Resolve conflicting guidance in this order: current code and tests → accepted ADRs → this operating manual → `HERMES.md` and `AGENTS.md` → `.agent/memories/` → historical plans, research notes, and commit messages. The `.agent/` tree is a derived lookup layer; agents must verify its source references before relying on a claim.
+
+For non-trivial work, search `.agent/memory-index.json` by task tags after reading the canonical agent docs. Update or retire affected memories when an architecture change makes them stale. See `BOOTSTRAP.md` and ADR-0007.
+
 ### Making Changes
 1. Identify the relevant module or server route
 2. Make the smallest change that satisfies the requirement
@@ -86,6 +92,7 @@
 | Harness verification policy | Server-owned allowlisted argv recipes + fail-closed real-run default | Agents may request recipe IDs but cannot select commands, policy paths, cwd, or limits |
 | Harness child/checkpoint retention | Shallow depth-4 lineage, metadata-only checkpoints, dry-run retention | Prevent recursive explosion, forged lineage, unsafe rollback, and implicit deletion |
 | Public access security | TOTP MFA + optional trusted-proxy IP/CIDR allowlist | Terminal and agent execution require defense in depth beyond passwords |
+| Agent long-term memory | Source-backed derived `.agent/` overlay | Faster context recovery without replacing code, tests, ADRs, or explicit Git approval |
 
 See `docs/adr/` for full ADR files.
 
@@ -126,4 +133,4 @@ Defined in `public/js/background.js`. Current modes: `Nebula Flow`, `Cyber Strea
 
 ---
 
-*Last updated: 2026-06-12*
+*Last updated: 2026-07-14*

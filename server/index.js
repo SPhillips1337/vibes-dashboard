@@ -19,6 +19,7 @@ const { parseEncryptionKey } = require('./mfa');
 const { createAccessControl } = require('./access-control');
 const { isSessionValid } = require('./session-policy');
 const { createRemoveTrackHandler } = require('./music-library');
+const { resolveWorkingDirectory, bindTerminalProcess } = require('./terminal-exec');
 
 const app = express();
 const accessControl = createAccessControl({
@@ -1455,7 +1456,17 @@ io.on('connection', (socket) => {
   // ── Terminal Exec Socket Listeners ──
   socket.activeTerminalProcess = null;
 
+  socket.on('terminal-cwd-request', () => {
+    const { cwd } = resolveWorkingDirectory(null, { defaultCwd: process.cwd() });
+    socket.emit('terminal-cwd', { cwd });
+  });
+
   socket.on('terminal-run', ({ command, cwd }) => {
+    const workingDirectory = resolveWorkingDirectory(cwd, { defaultCwd: process.cwd() });
+    if (workingDirectory.recovered) {
+      socket.emit('terminal-output', { type: 'cwd-update', cwd: workingDirectory.cwd });
+    }
+
     const args = command.trim().split(/\s+/);
     if (args[0] === 'cd') {
       let targetDir = args[1] || '';
@@ -1465,7 +1476,7 @@ io.on('connection', (socket) => {
         if (targetDir.startsWith('~')) {
           targetDir = targetDir.replace('~', process.env.HOME || '/');
         }
-        targetDir = path.resolve(cwd, targetDir);
+        targetDir = path.resolve(workingDirectory.cwd, targetDir);
       }
 
       if (fs.existsSync(targetDir) && fs.statSync(targetDir).isDirectory()) {
@@ -1481,29 +1492,20 @@ io.on('connection', (socket) => {
     try {
       const child = spawn(command, [], {
         shell: true,
-        cwd: cwd || process.cwd(),
+        cwd: workingDirectory.cwd,
         env: { ...process.env, FORCE_COLOR: '1' }
       });
 
       socket.activeTerminalProcess = child;
 
-      child.stdout.on('data', (data) => {
-        socket.emit('terminal-output', { type: 'stdout', data: data.toString() });
-      });
-
-      child.stderr.on('data', (data) => {
-        socket.emit('terminal-output', { type: 'stderr', data: data.toString() });
-      });
-
-      child.on('close', (code) => {
-        socket.activeTerminalProcess = null;
-        socket.emit('terminal-output', { type: 'exit', code: code });
-      });
-
-      child.on('error', (err) => {
-        socket.activeTerminalProcess = null;
-        socket.emit('terminal-output', { type: 'stderr', data: `System Error: ${err.message}\n` });
-        socket.emit('terminal-output', { type: 'exit', code: 1 });
+      bindTerminalProcess(child, {
+        onStdout: data => socket.emit('terminal-output', { type: 'stdout', data: data.toString() }),
+        onStderr: data => socket.emit('terminal-output', { type: 'stderr', data: data.toString() }),
+        onError: err => socket.emit('terminal-output', { type: 'stderr', data: `System Error: ${err.message}\n` }),
+        onExit: code => {
+          socket.activeTerminalProcess = null;
+          socket.emit('terminal-output', { type: 'exit', code });
+        }
       });
 
     } catch (err) {

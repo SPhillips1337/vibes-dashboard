@@ -132,7 +132,7 @@ Modules are manifest-driven views that the core loads. Key panels include:
 
 ### `terminal`
 * **Path**: `modules/terminal/`
-* Emulates terminal viewports to capture execution logs.
+* Executes host-shell commands over the authenticated Socket.io connection. The server supplies and validates the working directory before spawning; stale client directories recover to the running project directory.
 
 ### `web-browser`
 * **Path**: `modules/web-browser/`

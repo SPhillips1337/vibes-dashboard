@@ -336,6 +336,9 @@ Sandboxed reverse-proxy used by the iframe Web Browser module to load external w
 * `agent-decline` `{ id: string }` — Reject proposed task list and remove agent.
 * `agent-terminate` `{ id: string }` — Force quit running vibes agent process.
 * `agent-logs` `{ id: string }` — Query full log text history.
+* `terminal-cwd-request` — Requests the server-authoritative initial directory for the Developer Terminal.
+* `terminal-run` `{ command: string, cwd: string | null }` — Executes a host-shell command. Missing or stale directories recover to the running server directory.
+* `terminal-kill` — Sends termination to the active terminal child process for that socket.
 
 ### Server → Client Events
 * `agents-snapshot` `Array<Agent>` — Sends list of all active or cached agents on handshake.
@@ -343,3 +346,5 @@ Sandboxed reverse-proxy used by the iframe Web Browser module to load external w
 * `agent-updated` `{ id: string, ...fields }` — Streams task progression, status updates, or failures.
 * `agent-removed` `{ id: string }` — Confirms process cleanup.
 * `agent-log` `{ id: string, log: string }` — Broadcasts individual stdout lines.
+* `terminal-cwd` `{ cwd: string }` — Returns the server-authoritative initial terminal directory.
+* `terminal-output` `{ type: "stdout" | "stderr" | "cwd-update" | "exit", data?: string, cwd?: string, code?: number }` — Streams terminal output, directory recovery/changes, and one terminal result per command.

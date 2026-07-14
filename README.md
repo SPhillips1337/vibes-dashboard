@@ -86,6 +86,8 @@ Copy `.env.example` to `.env`, generate the MFA key with `openssl rand -base64 3
 ├── certs/                  # SSL certs (generated, gitignored)
 ├── docs/                   # Technical reference docs
 ├── research/               # External references, VFX links, notes
+├── .agent/                 # Derived, source-backed agent memory overlay
+├── BOOTSTRAP.md            # Agents Protocol lookup, update, and safety workflow
 ├── CONTEXT.md              # Project operating manual (read this first)
 ├── AGENTS.md               # AI agent rules (design constraints, protocol)
 ├── HERMES.md               # Agent workflow guide (repo conventions + ADR index)
@@ -101,6 +103,8 @@ Copy `.env.example` to `.env`, generate the MFA key with `openssl rand -base64 3
 | [CONTEXT.md](CONTEXT.md) | Stack, rules, architecture decisions — the operating manual |
 | [HERMES.md](HERMES.md) | Agent workflow, conventions, ADR index |
 | [AGENTS.md](AGENTS.md) | Design system rules for AI agents |
+| [BOOTSTRAP.md](BOOTSTRAP.md) | Safe Agents Protocol memory bootstrap and truth-audit workflow |
+| [.agent/README.md](.agent/README.md) | Derived memory structure and authority boundaries |
 | [docs/API.md](docs/API.md) | REST & WebSocket API reference |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture overview |
 | [docs/BUILD.md](docs/BUILD.md) | Build & dev setup |

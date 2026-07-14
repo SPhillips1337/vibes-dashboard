@@ -10,17 +10,30 @@
 - Module folders: `modules/<kebab-case-name>/`
 - ADRs: `docs/adr/ADR-NNNN-<slug>.md` (zero-padded, e.g. `ADR-0001-vanilla-frontend.md`)
 - Research notes: `research/github-projects/<repo-name>.md`
+- Derived agent memories: `.agent/memories/<type>/<topic>.md`, indexed by `.agent/memory-index.json`
 
 ### Commit Discipline
 - One logical change per commit
 - If you update an API endpoint, update `docs/API.md` in the same commit
 - If you make an architecture decision, create or update an ADR in the same commit
 - Do not commit `node_modules/`, `certs/`, or `settings.json`
+- Commit or push only when the user explicitly requests it; verification alone is not approval
 
 ### Branch Workflow
 - Feature branches off `main`
 - Name: `feature/<short-description>` or `fix/<short-description>`
 - No long-lived branches — merge or close within the same session
+
+---
+
+## Agents Protocol Context Lookup
+
+1. Read `CONTEXT.md`, this guide, and `AGENTS.md`.
+2. Search `.agent/memory-index.json` for tags relevant to the task.
+3. Read only matching entries and verify their canonical source references.
+4. Treat memory as derived: code/tests and accepted ADRs always win.
+5. Follow `BOOTSTRAP.md` when adding, updating, retiring, or auditing memory.
+6. Never use automatic commits or destructive Git reset/clean operations as a recovery strategy.
 
 ---
 
@@ -65,6 +78,7 @@
 | [0004](docs/adr/ADR-0004-json-file-playlist.md) | JSON file persistence for saved playlist | Accepted |
 | [0005](docs/adr/ADR-0005-durable-harness-runs.md) | Durable harness runs | Accepted |
 | [0006](docs/adr/ADR-0006-mfa-and-network-access-control.md) | TOTP MFA and network access control | Accepted |
+| [0007](docs/adr/ADR-0007-derived-agent-memory-overlay.md) | Derived agent memory overlay | Accepted |
 
 ---
 
@@ -81,6 +95,7 @@ Quick reference: [research/LINKS.md](research/LINKS.md)
 - [ ] Any touched API endpoint is documented in `docs/API.md`
 - [ ] Any architecture decision is captured in an ADR
 - [ ] `CONTEXT.md` is still accurate
+- [ ] Any affected `.agent/` memory entry is updated, retired, or confirmed current
 - [ ] No Apple/iTunes CDN URLs appear anywhere in source or data files
 - [ ] No hardcoded secrets or API keys in source code
 

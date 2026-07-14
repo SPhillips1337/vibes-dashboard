@@ -57,6 +57,17 @@ All UI work must conform to the glassmorphic design system:
 
 ---
 
+## Agents Protocol Memory Overlay
+
+- Before non-trivial work, search `.agent/memory-index.json` by relevant tags, then verify matching entries against their canonical source references.
+- Memory is derived context only. Current code/tests, accepted ADRs, `CONTEXT.md`, and `HERMES.md` take precedence.
+- Durable architecture choices still require an ADR; do not turn `.agent/memories/` into a second source of truth.
+- Do not store secrets, raw conversation logs, temporary task state, PR identifiers, or unverified claims in repository memory.
+- Commit only when the user explicitly requests it. Never use destructive Git recovery to enforce momentum.
+- Follow [BOOTSTRAP.md](BOOTSTRAP.md) for memory updates and truth audits.
+
+---
+
 ## What Agents Must Not Do
 
 - ❌ Modify `public/index.html` shell structure without a design review

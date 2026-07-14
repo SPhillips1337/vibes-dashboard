@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-14",
+  "canonicalSources": [
+    "CONTEXT.md",
+    "HERMES.md",
+    "AGENTS.md",
+    "docs/adr"
+  ],
+  "policy": {
+    "derived": true,
+    "commitRequiresExplicitRequest": true,
+    "destructiveGitRecovery": "forbidden"
+  },
+  "entries": [
+    {
+      "id": "module-runtime",
+      "type": "semantic",
+      "path": ".agent/memories/codebase_insights/module-runtime.md",
+      "status": "active",
+      "tags": ["modules", "frontend", "manifests", "security"],
+      "sourceRefs": ["docs/adr/ADR-0002-manifest-module-system.md", "public/js/app.js", "server/index.js"]
+    },
+    {
+      "id": "durable-agent-harness",
+      "type": "semantic",
+      "path": ".agent/memories/codebase_insights/durable-agent-harness.md",
+      "status": "active",
+      "tags": ["agents", "harness", "events", "verification", "recovery"],
+      "sourceRefs": ["docs/adr/ADR-0005-durable-harness-runs.md", "server/harness/run-service.js", "server/harness/verifier.js"]
+    },
+    {
+      "id": "developer-terminal",
+      "type": "semantic",
+      "path": ".agent/memories/codebase_insights/developer-terminal.md",
+      "status": "active",
+      "tags": ["terminal", "shell", "spawn", "cwd", "socket"],
+      "sourceRefs": ["server/terminal-exec.js", "server/index.js", "modules/terminal/script.js", "test/terminal-exec.test.js"]
+    },
+    {
+      "id": "security-boundary",
+      "type": "semantic",
+      "path": ".agent/memories/codebase_insights/security-boundary.md",
+      "status": "active",
+      "tags": ["auth", "mfa", "csrf", "sessions", "network"],
+      "sourceRefs": ["docs/adr/ADR-0006-mfa-and-network-access-control.md", "server/session-policy.js", "server/access-control.js"]
+    },
+    {
+      "id": "music-library",
+      "type": "semantic",
+      "path": ".agent/memories/codebase_insights/music-library.md",
+      "status": "active",
+      "tags": ["music", "jamendo", "playlist", "frontend", "api"],
+      "sourceRefs": ["docs/adr/ADR-0003-jamendo-music-api.md", "docs/adr/ADR-0004-json-file-playlist.md", "server/music-library.js", "modules/music/script.js"]
+    },
+    {
+      "id": "architecture-decision-index",
+      "type": "decision",
+      "path": ".agent/memories/architectural_decisions/decision-index.md",
+      "status": "active",
+      "tags": ["architecture", "adr", "decisions", "governance"],
+      "sourceRefs": ["docs/adr", "CONTEXT.md"]
+    },
+    {
+      "id": "patterns-and-lessons",
+      "type": "procedural",
+      "path": ".agent/memories/patterns_and_lessons.md",
+      "status": "active",
+      "tags": ["workflow", "tdd", "browser", "security", "verification"],
+      "sourceRefs": ["docs/TESTING.md", "test/module-manager-ui.test.js", "test/music-ui.test.js", "test/session-policy.test.js"]
+    }
+  ]
+}

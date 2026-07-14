@@ -11,13 +11,13 @@
   const btnClear = $('#btn-terminal-clear');
   const btnSigint = $('#btn-terminal-sigint');
 
-  let currentCwd = '/home/stephen/projects/glass-vibes-dashboard';
+  let currentCwd = null;
   let commandHistory = [];
   let historyIndex = -1;
   let isRunning = false;
 
   // Set initial CWD display
-  updatePromptCwd(currentCwd);
+  updatePromptCwd('~');
 
   function updatePromptCwd(cwd) {
     let display = cwd;
@@ -27,6 +27,13 @@
     }
     termPromptCwd.textContent = display;
   }
+
+  socket.on('terminal-cwd', (data) => {
+    currentCwd = data.cwd;
+    updatePromptCwd(currentCwd);
+  });
+
+  socket.emit('terminal-cwd-request');
 
   function createPromptSpan() {
     const promptSpan = document.createElement('span');
