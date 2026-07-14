@@ -5,14 +5,92 @@
   let installedGrid = null;
   let catalogGrid = null;
 
-  function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const ALLOWED_SVG_ELEMENTS = new Set([
+    'svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon'
+  ]);
+  const ALLOWED_SVG_ATTRIBUTES = new Set([
+    'viewBox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
+    'd', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2',
+    'width', 'height', 'points'
+  ]);
+  const UNSAFE_SVG_VALUE = /(?:javascript:|data:|url\s*\()/i;
+
+  function cloneSafeSvgNode(node) {
+    const tagName = node.localName;
+    if (!ALLOWED_SVG_ELEMENTS.has(tagName)) return null;
+
+    const clone = document.createElementNS(SVG_NS, tagName);
+    Array.from(node.attributes || []).forEach(attribute => {
+      if (ALLOWED_SVG_ATTRIBUTES.has(attribute.name) && !UNSAFE_SVG_VALUE.test(attribute.value)) {
+        clone.setAttribute(attribute.name, attribute.value);
+      }
+    });
+    Array.from(node.children || []).forEach(child => {
+      const safeChild = cloneSafeSvgNode(child);
+      if (safeChild) clone.appendChild(safeChild);
+    });
+    return clone;
+  }
+
+  function renderModuleIcon(icon) {
+    const container = document.createElement('div');
+    container.className = 'module-icon';
+    container.setAttribute('aria-hidden', 'true');
+
+    const source = String(icon || '').trim();
+    if (!source.startsWith('<svg')) {
+      container.textContent = source || '◇';
+      return container;
+    }
+
+    const parsed = new DOMParser().parseFromString(source, 'image/svg+xml');
+    const safeSvg = parsed.documentElement.localName === 'svg'
+      ? cloneSafeSvgNode(parsed.documentElement)
+      : null;
+    if (safeSvg) container.appendChild(safeSvg);
+    else container.textContent = '◇';
+    return container;
+  }
+
+  function createTextElement(tagName, className, text) {
+    const element = document.createElement(tagName);
+    if (className) element.className = className;
+    element.textContent = text;
+    return element;
+  }
+
+  function createModuleCard(item, options = {}) {
+    const card = document.createElement('article');
+    card.className = 'module-card';
+
+    const header = document.createElement('div');
+    header.className = 'module-card-header';
+    header.appendChild(renderModuleIcon(item.icon));
+
+    const info = document.createElement('div');
+    info.className = 'module-info';
+    info.appendChild(createTextElement('h3', '', item.name));
+    info.appendChild(createTextElement('p', '', item.subtitle || 'Installed Module'));
+    header.appendChild(info);
+
+    const footer = document.createElement('div');
+    footer.className = 'module-card-footer';
+    footer.appendChild(createTextElement(
+      'span',
+      `status-badge${options.active ? ' active' : ''}`,
+      options.status
+    ));
+
+    const action = createTextElement('button', `action-btn${options.primary ? ' primary' : ''}`, options.action);
+    action.type = 'button';
+    action.disabled = Boolean(options.disabled);
+    if (options.onAction) action.addEventListener('click', options.onAction);
+    footer.appendChild(action);
+
+    card.appendChild(header);
+    card.appendChild(footer);
+    return card;
   }
 
   function init() {
@@ -50,27 +128,12 @@
     installedGrid.replaceChildren();
     
     window.Dashboard.modules.forEach(mod => {
-      const card = document.createElement('div');
-      card.className = 'module-card';
-      card.innerHTML = `
-        <div class="module-card-header">
-          <div class="module-icon">${escapeHtml(mod.icon || '')}</div>
-          <div class="module-info">
-            <h3>${escapeHtml(mod.name)}</h3>
-            <p>${escapeHtml(mod.subtitle || 'Installed Module')}</p>
-          </div>
-        </div>
-        <div class="module-card-footer">
-          <span class="status-badge active">Active</span>
-          <button class="action-btn" data-id="${escapeHtml(mod.id)}">Open</button>
-        </div>
-      `;
-      
-      card.querySelector('.action-btn').addEventListener('click', () => {
-        window.Dashboard.showView(mod.id);
-      });
-      
-      installedGrid.appendChild(card);
+      installedGrid.appendChild(createModuleCard(mod, {
+        active: true,
+        status: 'Active',
+        action: 'Open',
+        onAction: () => window.Dashboard.showView(mod.id)
+      }));
     });
   }
 
@@ -88,22 +151,12 @@
     catalogGrid.replaceChildren();
     
     catalogItems.forEach(item => {
-      const card = document.createElement('div');
-      card.className = 'module-card';
-      card.innerHTML = `
-        <div class="module-card-header">
-          <div class="module-icon">${escapeHtml(item.icon)}</div>
-          <div class="module-info">
-            <h3>${escapeHtml(item.name)}</h3>
-            <p>${escapeHtml(item.subtitle)}</p>
-          </div>
-        </div>
-        <div class="module-card-footer">
-          <span class="status-badge">Available at a2m.one</span>
-          <button class="action-btn primary" disabled>Install</button>
-        </div>
-      `;
-      catalogGrid.appendChild(card);
+      catalogGrid.appendChild(createModuleCard(item, {
+        status: 'Available at a2m.one',
+        action: 'Install',
+        primary: true,
+        disabled: true
+      }));
     });
   }
 
