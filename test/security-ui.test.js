@@ -28,6 +28,10 @@ test('user access settings render MFA state and provide a protected reset action
   const script = read('modules/settings/script.js');
   assert.match(script, /mfaEnabled/);
   assert.match(script, /\/mfa/);
+  assert.match(script, /Set up two-factor authentication/);
+  assert.match(script, /\/api\/auth\/mfa\/setup/);
+  assert.match(script, /\/api\/auth\/mfa\/enable/);
+  assert.match(script, /mfa-admin-qr-code/);
   assert.match(script, /Reset two-factor authentication/);
   assert.match(script, /X-CSRF-Token/);
 });

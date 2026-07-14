@@ -189,7 +189,7 @@ module.exports = {
   initializationPromise,
   
   // Creates and records a session
-  createSession(userId, username, role) {
+  createSession(userId, username, role, mfaVerified = false) {
     const sessionId = crypto.randomBytes(32).toString('hex');
     const csrfToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
@@ -198,6 +198,7 @@ module.exports = {
       userId,
       username,
       role,
+      mfaVerified,
       csrfToken,
       expiresAt
     };

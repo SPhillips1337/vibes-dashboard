@@ -218,7 +218,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   auth.recordLoginAttempt(ip, true);
 
-  const { sessionId, csrfToken } = auth.createSession(user.id, user.username, user.role);
+  const { sessionId, csrfToken } = auth.createSession(user.id, user.username, user.role, MFA_REQUIRED);
 
   res.cookie('__Host-session-id', sessionId, {
     httpOnly: true,
@@ -293,6 +293,33 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/auth/csrf', (req, res) => {
   res.json({ csrfToken: req.session.csrfToken });
+});
+
+app.post('/api/auth/mfa/setup', async (req, res) => {
+  if (!MFA_REQUIRED) return res.status(409).json({ error: 'Two-factor authentication is not enabled on this server' });
+  const user = auth.users.find(candidate => candidate.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.mfa?.secretEncrypted) return res.status(409).json({ error: 'Two-factor authentication is already enabled' });
+
+  const challenge = mfaService.begin(user);
+  const qrCodeDataUrl = await QRCode.toDataURL(challenge.otpauthUri, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 220
+  });
+  res.json({ ...challenge, qrCodeDataUrl });
+});
+
+app.post('/api/auth/mfa/enable', (req, res) => {
+  if (!MFA_REQUIRED) return res.status(409).json({ error: 'Two-factor authentication is not enabled on this server' });
+  const user = auth.users.find(candidate => candidate.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const result = mfaService.verify(user, req.body.challengeId, req.body.code);
+  if (!result.ok || !result.enrolled) return res.status(400).json({ error: 'Invalid or expired authentication code' });
+
+  req.session.mfaVerified = true;
+  auth.saveSessions();
+  res.json({ success: true, recoveryCodes: result.recoveryCodes });
 });
 
 // ROLE-BASED ACCESS CONTROL (RBAC) MIDDLEWARE
