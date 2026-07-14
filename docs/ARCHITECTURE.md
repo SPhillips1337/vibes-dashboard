@@ -47,7 +47,8 @@ Vibes Dashboard is a pluggable command center designed around a Node.js/Express 
 ### `server/index.js`
 The core application server:
 * **Static Asset Delivery**: Serves standard resources from `public/` and modular subviews from `modules/`.
-* **Session & Guarding**: Validates TLS connections, enforces Operator/Admin privileges (RBAC), and checks CSRF tokens on mutate requests.
+* **Session & Guarding**: Validates TLS connections, requires password plus TOTP/recovery code when enabled, enforces Operator/Admin privileges (RBAC), and checks CSRF tokens on mutate requests.
+* **Network Boundary**: Applies an optional IP/CIDR allowlist to HTTP and Socket.io. Forwarded client addresses are accepted only from explicitly trusted proxy peers.
 * **Jamendo Bridge**: Processes keywords, queries Jamendo's API endpoints, and registers virtual streams to `/data/music/saved_playlist.json`.
 * **LLM Proxy Gateways**: Proxies tags and models requests to avoid browser-level CORS errors.
 * **Theme Scanner**: Auto-discovers `.css` stylesheet themes from `public/themes/*/`.
@@ -61,6 +62,10 @@ The `VibesBridge` handles child process spawning:
 
 ### `server/coordination-adapter.js`
 Dependency-injected boundary to local Agent Communication MCP. Production uses `AGENT_COMM_MCP_URL`, `AGENT_COMM_MCP_TOKEN`, and a bounded timeout; tests inject fixture clients. Upstream tool names live in one `TOOL_NAMES` mapping. The adapter normalizes provider readiness and activity, derives approval/verification/artifact projections, and emits stable unavailable reasons without exposing secrets or raw errors. Its protected `GET /api/control-center` route returns `503` rather than simulated data when unavailable.
+
+### Authentication security modules
+
+`server/mfa.js` implements RFC 6238 TOTP and AES-256-GCM secret storage. `server/mfa-challenges.js` owns bounded five-minute password-to-MFA challenges, one-time recovery-code consumption, enrollment, and reset. No dashboard session exists until this challenge succeeds. `server/access-control.js` parses IP/CIDR policy and uses a trusted-proxy function for both Express and Socket.io, preventing direct clients from spoofing `X-Forwarded-For`.
 
 ### `server/harness/`
 The durable run core uses versioned, size-limited event envelopes (`event-contract.js`), filesystem persistence (`run-store.js`), deterministic replay (`run-projector.js`), and a lifecycle boundary (`run-service.js`). Each run has immutable initial metadata in `run.json` and an append-only `events.jsonl`; snapshot replacements are atomic and concurrent event appends are serialized per run. `RunService` generates event IDs and harness actors internally, persists before emitting, enforces transitions, and writes only allowlisted `plan.json` and `verification.json` documents.

@@ -13,8 +13,18 @@ const { loadVerificationPolicy, selectVerification } = require('./harness/verifi
 const { createVerifier } = require('./harness/verifier');
 const { createHarnessHandlers } = require('./harness-api');
 const { spawn, spawnSync } = require('child_process');
+const QRCode = require('qrcode');
+const { createMfaChallengeService } = require('./mfa-challenges');
+const { parseEncryptionKey } = require('./mfa');
+const { createAccessControl } = require('./access-control');
 
 const app = express();
+const accessControl = createAccessControl({
+  allowedIps: process.env.ACCESS_ALLOWED_IPS,
+  trustedProxies: process.env.TRUSTED_PROXY_IPS
+});
+app.set('trust proxy', accessControl.trustProxy);
+app.use(accessControl.middleware);
 const certDir = path.join(__dirname, '..', 'certs');
 const certPath = path.join(certDir, 'cert.pem');
 const keyPath = path.join(certDir, 'key.pem');
@@ -35,6 +45,7 @@ if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
 }
 
 const io = new Server(server);
+io.engine.use(accessControl.nodeMiddleware);
 
 const PORT = process.env.PORT || 9000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -48,6 +59,13 @@ const USE_VIBES = process.env.USE_VIBES === 'true' || (hasVibes && process.env.U
 
 const auth = require('./auth');
 const coordinationAdapter = createAdapterFromEnv();
+const MFA_REQUIRED = process.env.MFA_REQUIRED === 'true';
+const mfaService = createMfaChallengeService({
+  required: MFA_REQUIRED,
+  encryptionKey: MFA_REQUIRED ? parseEncryptionKey(process.env.MFA_ENCRYPTION_KEY) : undefined,
+  issuer: process.env.MFA_ISSUER || 'Vibes Dashboard',
+  saveUser: () => auth.saveUsers()
+});
 
 // Custom Cookie Parser Middleware
 app.use((req, res, next) => {
@@ -163,7 +181,7 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(429).json({ error: 'Too many failed login attempts. Try again in 10 minutes.' });
   }
 
-  const { username, password } = req.body;
+  const { username, password, mfaChallengeId, mfaCode } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
@@ -178,6 +196,24 @@ app.post('/api/auth/login', async (req, res) => {
   if (!valid) {
     auth.recordLoginAttempt(ip, false);
     return res.status(401).json({ error: 'Invalid username or password' });
+  }
+
+  let recoveryCodes;
+  if (MFA_REQUIRED) {
+    if (!mfaChallengeId || !mfaCode) {
+      const challenge = mfaService.begin(user);
+      const qrCodeDataUrl = challenge.enrollmentRequired
+        ? await QRCode.toDataURL(challenge.otpauthUri, { errorCorrectionLevel: 'M', margin: 1, width: 220 })
+        : undefined;
+      return res.status(202).json({ ...challenge, qrCodeDataUrl });
+    }
+
+    const mfaResult = mfaService.verify(user, mfaChallengeId, mfaCode);
+    if (!mfaResult.ok) {
+      auth.recordLoginAttempt(ip, false);
+      return res.status(401).json({ error: 'Invalid or expired authentication code' });
+    }
+    recoveryCodes = mfaResult.recoveryCodes;
   }
 
   auth.recordLoginAttempt(ip, true);
@@ -198,7 +234,8 @@ app.post('/api/auth/login', async (req, res) => {
       username: user.username,
       name: user.name,
       role: user.role
-    }
+    },
+    ...(recoveryCodes ? { recoveryCodes } : {})
   });
 });
 
@@ -273,7 +310,8 @@ app.get('/api/users', requireAdmin, (req, res) => {
     username: u.username,
     name: u.name,
     role: u.role,
-    createdAt: u.createdAt
+    createdAt: u.createdAt,
+    mfaEnabled: Boolean(u.mfa?.secretEncrypted)
   }));
   res.json(safeUsers);
 });
@@ -313,7 +351,8 @@ app.post('/api/users', requireAdmin, async (req, res) => {
       username: newUser.username,
       name: newUser.name,
       role: newUser.role,
-      createdAt: newUser.createdAt
+      createdAt: newUser.createdAt,
+      mfaEnabled: false
     }
   });
 });
@@ -349,9 +388,21 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
       username: user.username,
       name: user.name,
       role: user.role,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
+      mfaEnabled: Boolean(user.mfa?.secretEncrypted)
     }
   });
+});
+
+app.delete('/api/users/:id/mfa', requireAdmin, (req, res) => {
+  const user = auth.users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  mfaService.reset(user);
+  for (const [sid, session] of Object.entries(auth.sessions)) {
+    if (session.userId === user.id) auth.destroySession(sid);
+  }
+  res.json({ success: true, mfaEnabled: false });
 });
 
 app.delete('/api/users/:id', requireAdmin, (req, res) => {
@@ -1457,7 +1508,7 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-const startupPromise = Promise.all([restorePromise, verificationPolicy]);
+const startupPromise = Promise.all([auth.initializationPromise, restorePromise, verificationPolicy]);
 
 startupPromise.then(() => server.listen(PORT, HOST, () => {
   const usingHttps = fs.existsSync(certPath) && fs.existsSync(keyPath);

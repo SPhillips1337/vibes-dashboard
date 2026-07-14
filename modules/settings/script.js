@@ -568,6 +568,7 @@
                   <th>Display Name</th>
                   <th>Username</th>
                   <th>Privilege Level</th>
+                  <th>Two-Factor</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -617,6 +618,13 @@
               tdRole.appendChild(badge);
               tr.appendChild(tdRole);
 
+              const tdMfa = document.createElement('td');
+              const mfaBadge = document.createElement('span');
+              mfaBadge.className = `user-role-badge ${u.mfaEnabled ? 'admin' : 'operator'}`;
+              mfaBadge.textContent = u.mfaEnabled ? 'Enabled' : 'Enrollment required';
+              tdMfa.appendChild(mfaBadge);
+              tr.appendChild(tdMfa);
+
               const tdActions = document.createElement('td');
               const actionDiv = document.createElement('div');
               actionDiv.className = 'user-actions';
@@ -657,6 +665,33 @@
                 formCard.classList.remove('hidden');
               });
               actionDiv.appendChild(editBtn);
+
+              if (u.mfaEnabled) {
+                const resetMfaBtn = document.createElement('button');
+                resetMfaBtn.className = 'btn-icon delete';
+                resetMfaBtn.title = 'Reset two-factor authentication';
+                resetMfaBtn.textContent = '2FA';
+                resetMfaBtn.addEventListener('click', async () => {
+                  if (!confirm(`Reset two-factor authentication for "${u.name}"? All of their sessions will be revoked.`)) return;
+                  try {
+                    const resetResp = await fetch(`/api/users/${u.id}/mfa`, {
+                      method: 'DELETE',
+                      headers: { 'X-CSRF-Token': window.Dashboard.csrfToken }
+                    });
+                    if (!resetResp.ok) {
+                      const errData = await resetResp.json();
+                      alert(`2FA reset failed: ${errData.error}`);
+                    } else if (u.username === window.Dashboard.currentUser.username) {
+                      window.location.reload();
+                    } else {
+                      fetchAndDrawUsers();
+                    }
+                  } catch (error) {
+                    console.error('[User-Access] 2FA reset failed:', error);
+                  }
+                });
+                actionDiv.appendChild(resetMfaBtn);
+              }
 
               // Delete Action
               if (u.username !== window.Dashboard.currentUser.username) {

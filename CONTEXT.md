@@ -15,7 +15,7 @@
 | 3D/VFX | Three.js (CDN) | Background WebGL engine in `public/js/background.js` |
 | Audio | Web Audio API | AnalyserNode for visualizer; SpeechRecognition for voice |
 | Music API | Jamendo API v3 | `client_id=709fa152` (dev key) — royalty-free only |
-| Auth | scrypt + `__Host-` cookies | CSRF tokens required on all mutating requests |
+| Auth | scrypt + TOTP MFA + `__Host-` cookies | CSRF tokens required on all mutating requests |
 | OS | Ubuntu Linux | Tested on Chrome; SpeechRecognition requires Chrome or Edge |
 
 ---
@@ -35,6 +35,8 @@
 - Sessions use `__Host-` prefixed cookies: `httpOnly`, `secure`, `sameSite: Strict`
 - Do **not** trust `req.body` for user identity — always read from `req.session`
 - SSRF: the browser proxy blocks private/loopback ranges by default
+- Public deployments enable TOTP MFA; password-only success must never create a session
+- Forwarded client IPs are trusted only from configured reverse-proxy peers
 
 ### Music
 - **Never** stream or download copyright tracks — iTunes/Apple CDN URLs are banned
@@ -83,6 +85,7 @@
 | Durable harness runs | Append-only versioned JSONL + atomic JSON snapshots | Auditable restart recovery without a database; verifier events exclusively grant completion |
 | Harness verification policy | Server-owned allowlisted argv recipes + fail-closed real-run default | Agents may request recipe IDs but cannot select commands, policy paths, cwd, or limits |
 | Harness child/checkpoint retention | Shallow depth-4 lineage, metadata-only checkpoints, dry-run retention | Prevent recursive explosion, forged lineage, unsafe rollback, and implicit deletion |
+| Public access security | TOTP MFA + optional trusted-proxy IP/CIDR allowlist | Terminal and agent execution require defense in depth beyond passwords |
 
 See `docs/adr/` for full ADR files.
 

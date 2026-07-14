@@ -36,13 +36,20 @@ curl -fsSL https://raw.githubusercontent.com/SPhillips1337/vibes-dashboard/main/
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `9000` | Server port |
-| `HOST` | `0.0.0.0` | Bind address |
-| `ADMIN_PASSWORD` | `VibesAdmin2026!` | Seed admin password — **change immediately** |
+| `HOST` | `0.0.0.0` | Bind address; prefer `127.0.0.1` behind nginx |
+| `ADMIN_PASSWORD` | required for first production start | Seed admin password; never logged |
+| `MFA_REQUIRED` | `false` | Require TOTP/recovery code before session creation |
+| `MFA_ISSUER` | `Vibes Dashboard` | Authenticator account issuer label |
+| `MFA_ENCRYPTION_KEY` | unset | Base64 32-byte AES key; required when MFA is enabled |
+| `ACCESS_ALLOWED_IPS` | unset | Optional comma-separated IP/CIDR allowlist |
+| `TRUSTED_PROXY_IPS` | unset | Proxy peers allowed to supply forwarded client IPs |
 | `USE_VIBES` | auto-detect | `true` = real agents, `false` = demo simulation |
 | `ALLOW_LOCAL_PROXY` | `true` in dev | Allow browser proxy to reach private IPs |
 | `AGENT_COMM_MCP_URL` | `http://127.0.0.1:8767/mcp` | Agent Communication MCP Streamable HTTP endpoint |
 | `AGENT_COMM_MCP_TOKEN` | unset | Server-only MCP bearer token; unset shows a not-configured state |
 | `AGENT_COMM_MCP_TIMEOUT_MS` | `5000` | Coordination request timeout in milliseconds |
+
+Copy `.env.example` to `.env`, generate the MFA key with `openssl rand -base64 32`, and back it up outside the repository. When enabling `ACCESS_ALLOWED_IPS`, include the real public client IP/CIDR—not the proxy address—and keep the current session open while testing a second connection. Only list reverse-proxy peers you control in `TRUSTED_PROXY_IPS`; otherwise forwarded headers are ignored.
 
 ---
 
@@ -112,7 +119,7 @@ curl -fsSL https://raw.githubusercontent.com/SPhillips1337/vibes-dashboard/main/
 - **Voice Commands** — Wake-word detection ("Vibes"), Web Speech API, TTS feedback, intent registry
 - **LLM Provider** — Configure Ollama, LM Studio, or OpenAI-compatible backends
 - **Local Agent Control Center** — Real readiness, activity, approvals, verification outcomes, and artifacts with explicit empty/unavailable states
-- **Security** — HTTPS, `__Host-` cookies, CSRF tokens, scrypt hashing, SSRF blocking
+- **Security** — HTTPS, TOTP MFA and recovery codes, optional trusted-proxy IP allowlisting, `__Host-` cookies, CSRF tokens, scrypt hashing, SSRF blocking
 
 ---
 

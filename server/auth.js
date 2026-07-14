@@ -2,7 +2,9 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.AUTH_DATA_DIR
+  ? path.resolve(process.env.AUTH_DATA_DIR)
+  : path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 
@@ -28,7 +30,8 @@ function loadUsers() {
 // Save users to disk
 function saveUsers() {
   try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), { encoding: 'utf8', mode: 0o600 });
+    fs.chmodSync(USERS_FILE, 0o600);
   } catch (err) {
     console.error('[Auth] Failed to save users:', err);
   }
@@ -56,7 +59,8 @@ function loadSessions() {
 // Save sessions to disk
 function saveSessions() {
   try {
-    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2), 'utf8');
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2), { encoding: 'utf8', mode: 0o600 });
+    fs.chmodSync(SESSIONS_FILE, 0o600);
   } catch (err) {
     console.error('[Auth] Failed to save sessions:', err);
   }
@@ -101,7 +105,8 @@ async function seedAdmin() {
   loadUsers();
   if (users.length === 0) {
     const username = 'admin';
-    const password = process.env.ADMIN_PASSWORD || 'VibesAdmin2026!';
+    const password = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'VibesAdmin2026!');
+    if (!password) throw new Error('ADMIN_PASSWORD is required when seeding the production administrator');
     const hashedPassword = await hashPassword(password);
     
     users.push({
@@ -117,7 +122,6 @@ async function seedAdmin() {
     console.warn('\n=============================================================');
     console.warn(`[Auth] No users found. Seeded default admin account.`);
     console.warn(`Username: ${username}`);
-    console.warn(`Password: ${password}`);
     console.warn(`WARNING: Change this password immediately after logging in!`);
     console.warn('=============================================================\n');
   }
@@ -171,7 +175,7 @@ setInterval(() => {
 // Initialize database
 loadUsers();
 loadSessions();
-seedAdmin();
+const initializationPromise = seedAdmin();
 
 module.exports = {
   users,
@@ -182,6 +186,7 @@ module.exports = {
   verifyPassword,
   isRateLimited,
   recordLoginAttempt,
+  initializationPromise,
   
   // Creates and records a session
   createSession(userId, username, role) {

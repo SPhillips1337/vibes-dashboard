@@ -413,7 +413,6 @@
 
   function setupLoginHandler() {
     const form = document.getElementById('login-form');
-    const errorMsg = document.getElementById('login-error-msg');
     if (!form) return;
     
     // Clear any previous submit listeners
@@ -422,11 +421,41 @@
     
     const inputUser = newForm.querySelector('#login-username');
     const inputPass = newForm.querySelector('#login-password');
+    const inputMfa = newForm.querySelector('#login-mfa-code');
+    const mfaGroup = newForm.querySelector('#login-mfa-group');
+    const enrollment = newForm.querySelector('#mfa-enrollment');
+    const qrCode = newForm.querySelector('#mfa-qr-code');
+    const manualSecret = newForm.querySelector('#mfa-manual-secret');
+    const recoveryPanel = newForm.querySelector('#mfa-recovery-codes');
+    const recoveryList = newForm.querySelector('#mfa-recovery-list');
+    const submitButton = newForm.querySelector('.login-btn');
     const labelError = newForm.querySelector('#login-error-msg');
+    let mfaChallengeId = null;
+    let pendingAuthenticatedUser = null;
+
+    async function completeLogin(user) {
+      const csrfResp = await fetch('/api/auth/csrf');
+      if (!csrfResp.ok) throw new Error('Failed to establish CSRF session');
+      const csrfData = await csrfResp.json();
+      csrfToken = csrfData.csrfToken;
+      document.getElementById('login-overlay').classList.add('hidden');
+      document.getElementById('ui-root').classList.remove('hidden');
+      await bootApp(user);
+    }
     
     newForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       labelError.textContent = '';
+
+      if (pendingAuthenticatedUser) {
+        try {
+          await completeLogin(pendingAuthenticatedUser);
+        } catch (err) {
+          labelError.textContent = 'Session setup failed. Please sign in again.';
+          console.error('[Dashboard] Session completion failed:', err);
+        }
+        return;
+      }
       
       const username = inputUser.value.trim();
       const password = inputPass.value;
@@ -435,22 +464,52 @@
         const resp = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify({
+            username,
+            password,
+            ...(mfaChallengeId ? { mfaChallengeId, mfaCode: inputMfa.value.trim() } : {})
+          })
         });
         
         const data = await resp.json();
+        if (resp.status === 202 && data.mfaRequired) {
+          mfaChallengeId = data.challengeId;
+          inputUser.readOnly = true;
+          inputPass.readOnly = true;
+          mfaGroup.classList.remove('hidden');
+          inputMfa.required = true;
+          inputMfa.focus();
+          submitButton.textContent = 'Verify second factor';
+          enrollment.classList.toggle('hidden', !data.enrollmentRequired);
+          if (data.enrollmentRequired) {
+            qrCode.src = data.qrCodeDataUrl;
+            manualSecret.textContent = data.secret;
+          }
+          return;
+        }
+
         if (resp.ok && data.success) {
-          // Fetch CSRF
-          const csrfResp = await fetch('/api/auth/csrf');
-          const csrfData = await csrfResp.json();
-          csrfToken = csrfData.csrfToken;
-          
-          document.getElementById('login-overlay').classList.add('hidden');
-          document.getElementById('ui-root').classList.remove('hidden');
-          
-          bootApp(data.user);
+          if (Array.isArray(data.recoveryCodes) && data.recoveryCodes.length) {
+            pendingAuthenticatedUser = data.user;
+            enrollment.classList.add('hidden');
+            mfaGroup.classList.add('hidden');
+            recoveryPanel.classList.remove('hidden');
+            recoveryList.replaceChildren();
+            data.recoveryCodes.forEach(code => {
+              const item = document.createElement('li');
+              item.textContent = code;
+              recoveryList.appendChild(item);
+            });
+            submitButton.textContent = 'I saved these codes — continue';
+          } else {
+            await completeLogin(data.user);
+          }
         } else {
           labelError.textContent = data.error || 'Invalid credentials';
+          if (mfaChallengeId) {
+            inputMfa.value = '';
+            inputMfa.focus();
+          }
         }
       } catch (err) {
         labelError.textContent = 'Connection error. Please try again.';
