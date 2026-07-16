@@ -24,6 +24,7 @@
     addDescription: document.getElementById('taskmaster-add-description'),
     taskList: document.getElementById('taskmaster-task-list'),
     detail: document.getElementById('taskmaster-detail'),
+    detailPanel: root.querySelector('.taskmaster-detail-panel'),
     filterButtons: Array.from(root.querySelectorAll('[data-filter]'))
   };
 
@@ -295,13 +296,21 @@
       return;
     }
 
+    const isMax = els.detailPanel && els.detailPanel.classList.contains('is-maximized');
+
     els.detail.innerHTML = `
       <div class="taskmaster-panel-heading compact-top">
         <div>
           <h3>Task details</h3>
           <p>Edit the selected task in place. Changes persist automatically.</p>
         </div>
-        <span class="taskmaster-badge ${statusClass(task.status)}">${escapeHtml(statusLabel(task.status))}</span>
+        <div class="taskmaster-heading-actions">
+          <span class="taskmaster-badge ${statusClass(task.status)}">${escapeHtml(statusLabel(task.status))}</span>
+          <button class="taskmaster-panel-toggle-btn" type="button" data-toggle-maximize="detail" title="${isMax ? 'Restore panel' : 'Maximize panel'}">
+            <svg class="icon-maximize ${isMax ? 'hidden' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+            <svg class="icon-minimize ${isMax ? '' : 'hidden'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>
+          </button>
+        </div>
       </div>
 
       <div class="taskmaster-detail-grid">
@@ -417,6 +426,9 @@
   function selectTask(taskId) {
     const changed = state.selectedId !== taskId;
     state.selectedId = taskId;
+
+    restorePanel('list');
+
     renderAll('Task selected');
     if (changed && els.detail) {
       els.detail.scrollTop = 0;
@@ -462,6 +474,8 @@
       updatedAt: nowIso(),
       subtasks: []
     });
+
+    restorePanel('add');
 
     state.tasks.unshift(task);
     state.selectedId = task.id;
@@ -648,6 +662,107 @@
 
     if (els.clearDoneBtn) {
       els.clearDoneBtn.addEventListener('click', clearCompleted);
+    }
+
+    // Dynamic event delegation for panel maximize buttons
+    root.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-toggle-maximize]');
+      if (btn) {
+        e.preventDefault();
+        const target = btn.getAttribute('data-toggle-maximize');
+        toggleMaximize(target, btn);
+      }
+    });
+  }
+
+  function toggleMaximize(target, button) {
+    let panelEl = null;
+    if (target === 'add') {
+      panelEl = document.getElementById('taskmaster-add-panel');
+    } else if (target === 'list') {
+      panelEl = document.getElementById('taskmaster-list-panel-inner');
+    } else if (target === 'detail') {
+      panelEl = els.detailPanel || document.getElementById('taskmaster-detail-panel');
+    }
+
+    if (!panelEl) return;
+
+    const isMax = !panelEl.classList.contains('is-maximized');
+
+    if (isMax) {
+      // Create placeholder
+      const placeholder = document.createElement('div');
+      placeholder.id = `${panelEl.id || 'detail'}-placeholder`;
+      placeholder.style.display = 'none';
+      panelEl.parentNode.insertBefore(placeholder, panelEl);
+
+      // Move panel to root
+      root.appendChild(panelEl);
+      panelEl.classList.add('is-maximized');
+    } else {
+      // Find placeholder
+      const placeholderId = `${panelEl.id || 'detail'}-placeholder`;
+      const placeholder = document.getElementById(placeholderId);
+      if (placeholder) {
+        placeholder.parentNode.insertBefore(panelEl, placeholder);
+        placeholder.remove();
+      }
+      panelEl.classList.remove('is-maximized');
+    }
+
+    // Update icons in the button
+    const maxIcon = button.querySelector('.icon-maximize');
+    const minIcon = button.querySelector('.icon-minimize');
+    if (maxIcon && minIcon) {
+      if (isMax) {
+        maxIcon.classList.add('hidden');
+        minIcon.classList.remove('hidden');
+        button.title = 'Restore panel';
+      } else {
+        maxIcon.classList.remove('hidden');
+        minIcon.classList.add('hidden');
+        button.title = 'Maximize panel';
+      }
+    }
+
+    // Play click sound if available
+    if (window.vibePlayer && window.vibePlayer.playClick) {
+      window.vibePlayer.playClick();
+    }
+  }
+
+  function restorePanel(target) {
+    let panelEl = null;
+    let button = null;
+    if (target === 'add') {
+      panelEl = document.getElementById('taskmaster-add-panel');
+      button = root.querySelector('[data-toggle-maximize="add"]');
+    } else if (target === 'list') {
+      panelEl = document.getElementById('taskmaster-list-panel-inner');
+      button = root.querySelector('[data-toggle-maximize="list"]');
+    } else if (target === 'detail') {
+      panelEl = els.detailPanel || document.getElementById('taskmaster-detail-panel');
+      button = root.querySelector('[data-toggle-maximize="detail"]');
+    }
+
+    if (panelEl && panelEl.classList.contains('is-maximized')) {
+      const placeholderId = `${panelEl.id || 'detail'}-placeholder`;
+      const placeholder = document.getElementById(placeholderId);
+      if (placeholder) {
+        placeholder.parentNode.insertBefore(panelEl, placeholder);
+        placeholder.remove();
+      }
+      panelEl.classList.remove('is-maximized');
+
+      if (button) {
+        const maxIcon = button.querySelector('.icon-maximize');
+        const minIcon = button.querySelector('.icon-minimize');
+        if (maxIcon && minIcon) {
+          maxIcon.classList.remove('hidden');
+          minIcon.classList.add('hidden');
+          button.title = 'Maximize panel';
+        }
+      }
     }
   }
 

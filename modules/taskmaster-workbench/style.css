@@ -1,4 +1,5 @@
 .taskmaster-module {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: calc(100vh - 84px);
@@ -518,4 +519,130 @@
   .taskmaster-subtasks-heading {
     flex-direction: column;
   }
+}
+
+/* Panel Maximization Toggles & Modal Styles */
+
+.taskmaster-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.taskmaster-panel-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0;
+}
+
+.taskmaster-panel-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
+  transform: scale(1.05);
+}
+
+.taskmaster-panel-toggle-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.taskmaster-panel-toggle-btn svg.hidden {
+  display: none;
+}
+
+.taskmaster-sub-panel {
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Maximized Panel Modal State */
+.taskmaster-panel.is-maximized,
+.taskmaster-sub-panel.is-maximized {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 95% !important;
+  height: 92% !important;
+  max-width: 950px !important;
+  z-index: 1000 !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: rgba(18, 18, 22, 0.9) !important;
+  backdrop-filter: blur(32px) !important;
+  -webkit-backdrop-filter: blur(32px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 26px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8) !important;
+  padding: 24px !important;
+  animation: taskmasterModalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes taskmasterModalIn {
+  0% {
+    transform: translate(-50%, -45%) scale(0.95);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Specific size override for Add Task panel when maximized */
+#taskmaster-add-panel.is-maximized {
+  height: auto !important;
+  max-height: 90% !important;
+  max-width: 650px !important;
+}
+
+/* Backdrop overlay when maximized */
+.taskmaster-panel.is-maximized::before,
+.taskmaster-sub-panel.is-maximized::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(6, 6, 8, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: -1;
+  pointer-events: none;
+  animation: fadeIn 0.25s ease;
+}
+
+/* Scrolling for maximized lists */
+#taskmaster-list-panel-inner.is-maximized .taskmaster-list {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+#taskmaster-list-panel-inner.is-maximized .taskmaster-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+#taskmaster-list-panel-inner.is-maximized .taskmaster-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#taskmaster-list-panel-inner.is-maximized .taskmaster-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
 }

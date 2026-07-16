@@ -60,37 +60,55 @@
 
   <div class="taskmaster-layout">
     <section class="taskmaster-panel taskmaster-list-panel">
-      <div class="taskmaster-panel-heading">
-        <div>
-          <h3>Add a task</h3>
-          <p>Quick capture for tasks you want to track inside the dashboard.</p>
+      <!-- Add a task Sub-panel -->
+      <div class="taskmaster-sub-panel" id="taskmaster-add-panel">
+        <div class="taskmaster-panel-heading">
+          <div>
+            <h3>Add a task</h3>
+            <p>Quick capture for tasks you want to track inside the dashboard.</p>
+          </div>
+          <div class="taskmaster-heading-actions">
+            <span class="taskmaster-badge" id="taskmaster-save-state">Ready</span>
+            <button class="taskmaster-panel-toggle-btn" type="button" data-toggle-maximize="add" title="Maximize panel">
+              <svg class="icon-maximize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              <svg class="icon-minimize hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>
+            </button>
+          </div>
         </div>
-        <span class="taskmaster-badge" id="taskmaster-save-state">Ready</span>
+
+        <form id="taskmaster-add-form" class="taskmaster-add-form">
+          <input id="taskmaster-add-title" type="text" maxlength="180" placeholder="What needs to get done?" autocomplete="off" required />
+          <textarea id="taskmaster-add-description" rows="3" maxlength="4096" placeholder="Add a short description or context…"></textarea>
+          <div class="taskmaster-form-row">
+            <button class="taskmaster-action-btn primary" type="submit">Add Task</button>
+            <span class="taskmaster-form-hint">Enter to save • Stored locally in this dashboard</span>
+          </div>
+        </form>
       </div>
 
-      <form id="taskmaster-add-form" class="taskmaster-add-form">
-        <input id="taskmaster-add-title" type="text" maxlength="180" placeholder="What needs to get done?" autocomplete="off" required />
-        <textarea id="taskmaster-add-description" rows="3" maxlength="4096" placeholder="Add a short description or context…"></textarea>
-        <div class="taskmaster-form-row">
-          <button class="taskmaster-action-btn primary" type="submit">Add Task</button>
-          <span class="taskmaster-form-hint">Enter to save • Stored locally in this dashboard</span>
+      <!-- Task list Sub-panel -->
+      <div class="taskmaster-sub-panel" id="taskmaster-list-panel-inner">
+        <div class="taskmaster-panel-heading compact-top">
+          <div>
+            <h3>Task list</h3>
+            <p>Click a task to open the detail pane and edit it inline.</p>
+          </div>
+          <div class="taskmaster-heading-actions">
+            <span class="taskmaster-badge neutral" id="taskmaster-visible-count">0 visible</span>
+            <button class="taskmaster-panel-toggle-btn" type="button" data-toggle-maximize="list" title="Maximize panel">
+              <svg class="icon-maximize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              <svg class="icon-minimize hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>
+            </button>
+          </div>
         </div>
-      </form>
 
-      <div class="taskmaster-panel-heading compact-top">
-        <div>
-          <h3>Task list</h3>
-          <p>Click a task to open the detail pane and edit it inline.</p>
+        <div class="taskmaster-list" id="taskmaster-task-list">
+          <div class="taskmaster-empty-state">No tasks yet. Add your first item above.</div>
         </div>
-        <span class="taskmaster-badge neutral" id="taskmaster-visible-count">0 visible</span>
-      </div>
-
-      <div class="taskmaster-list" id="taskmaster-task-list">
-        <div class="taskmaster-empty-state">No tasks yet. Add your first item above.</div>
       </div>
     </section>
 
-    <section class="taskmaster-panel taskmaster-detail-panel">
+    <section id="taskmaster-detail-panel" class="taskmaster-panel taskmaster-detail-panel">
       <div id="taskmaster-detail" class="taskmaster-detail">
         <div class="taskmaster-empty-state">
           Select a task to edit its details, subtasks, status, and notes.
