@@ -321,12 +321,12 @@
 
         <label class="taskmaster-field wide">
           <span>Description</span>
-          <textarea id="taskmaster-detail-description" rows="4" maxlength="600">${escapeHtml(task.description)}</textarea>
+          <textarea id="taskmaster-detail-description" rows="4" maxlength="4096">${escapeHtml(task.description)}</textarea>
         </label>
 
         <label class="taskmaster-field wide">
           <span>Notes</span>
-          <textarea id="taskmaster-detail-notes" rows="5" maxlength="1400" placeholder="Add implementation notes, links, or reminders…">${escapeHtml(task.notes)}</textarea>
+          <textarea id="taskmaster-detail-notes" rows="5" maxlength="8192" placeholder="Add implementation notes, links, or reminders…">${escapeHtml(task.notes)}</textarea>
         </label>
       </div>
 
@@ -354,7 +354,7 @@
               </label>
               <div class="taskmaster-subtask-fields">
                 <input type="text" class="taskmaster-subtask-title" value="${escapeHtml(subtask.title)}" placeholder="Subtask title" maxlength="180" data-subtask-action="title" />
-                <textarea class="taskmaster-subtask-description" rows="2" placeholder="Optional details…" maxlength="420" data-subtask-action="description">${escapeHtml(subtask.description)}</textarea>
+                <textarea class="taskmaster-subtask-description" rows="2" placeholder="Optional details…" maxlength="2048" data-subtask-action="description">${escapeHtml(subtask.description)}</textarea>
               </div>
               <button class="taskmaster-icon-btn danger" type="button" data-subtask-action="delete">Delete</button>
             </div>

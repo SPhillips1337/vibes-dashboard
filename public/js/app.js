@@ -230,7 +230,7 @@
   // ── Module Loader ──
   async function loadModules() {
     try {
-      const response = await fetch('/api/modules');
+      const response = await fetch(`/api/modules?v=${Date.now()}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const rawModules = await response.json();
       
@@ -245,7 +245,7 @@
         if (module.css) {
           const link = document.createElement('link');
           link.rel = 'stylesheet';
-          link.href = module.css;
+          link.href = `${module.css}?v=${Date.now()}`;
           document.head.appendChild(link);
         }
 
@@ -265,7 +265,7 @@
             if (module.css) {
               const link = document.createElement('link');
               link.rel = 'stylesheet';
-              link.href = module.css;
+              link.href = `${module.css}?v=${Date.now()}`;
               shadow.appendChild(link);
             }
             
@@ -314,7 +314,7 @@
         if (module.js) {
           await new Promise((resolve) => {
             const script = document.createElement('script');
-            script.src = module.js;
+            script.src = `${module.js}?v=${Date.now()}`;
             script.async = false;
             script.onload = () => {
               // Lifecycle: onInit
